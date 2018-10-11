@@ -1,0 +1,32 @@
+{
+  "name": "bloss-collector",
+  "version": "1.0.0",
+  "description": "NodeJS Server that collects metrics and distributes them to bloss-dashboard",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/christiankiller/bloss-collector.git"
+  },
+  "keywords": [
+    "nodejs",
+    "bloss"
+  ],
+  "author": "Christian Killer",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/christiankiller/bloss-collector/issues"
+  },
+  "homepage": "https://github.com/christiankiller/bloss-collector#readme",
+  "dependencies": {
+    "dotenv": "^6.1.0",
+    "express": "^4.16.3",
+    "socket.io": "^2.1.1",
+    "ssh2": "^0.6.1",
+    "ssh2shell": "^1.9.1",
+    "winston": "^3.1.0",
+    "winston-daily-rotate-file": "^3.3.3"
+  }
+}
