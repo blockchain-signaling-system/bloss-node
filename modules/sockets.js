@@ -7,7 +7,7 @@ module.exports = function (server) {
 
         // Checks via simple ping -c1 if the configured controller is reachable 
         // (so we won't even try to SSH if it's unreachable)
-        var isControllerAvailable;
+        var isControllerAvailable = false;
         var statusPollingActive = false;
 
         var exec = require('child_process').exec, child;
@@ -22,8 +22,17 @@ module.exports = function (server) {
             }
         });
 
+        socket.on('isControllerAvailable', function(data){
+            logger.info("isControllerAvailable called");
+            socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
+        });
+
         socket.on('statusPolling', function(data){
             statusPollingActive = !statusPollingActive;
+            logger.info("statusPollingActive changed to "+statusPollingActive);
+            if(!isControllerAvailable){
+                logger.info("Controller is not reachable.");
+            }
             // Emit back? 
         });
 
@@ -49,12 +58,16 @@ module.exports = function (server) {
         // This interval trigger a service status update every XX seconds
         // TODO: Create Websocket and control to stop the interval / define thresholds
         // clearInterval(timerID); // The setInterval it cleared and doesn't run anymore.
-        setInterval(function () {
-            // logger.info(isControllerAvailable);
+        setInterval(function () {            
             if (isControllerAvailable && statusPollingActive) {
                 getServiceStatus("bloss");
                 getServiceStatus("geth");
                 getServiceStatus("ipfs");
+            }else {
+                if(!isControllerAvailable)
+                logger.info("Status Retrieval failed because controller is not reachable");
+                else if(!statusPollingActive)
+                logger.info("Status Retrieval is deactivated");
             }
         }, 15 * 1000);
 
