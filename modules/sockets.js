@@ -58,7 +58,8 @@ module.exports = function (server) {
         // This interval trigger a service status update every XX seconds
         // TODO: Create Websocket and control to stop the interval / define thresholds
         // clearInterval(timerID); // The setInterval it cleared and doesn't run anymore.
-        setInterval(function () {            
+        setInterval(function () {
+            //logger.info("Executing getServiceStatus Interval, isControllerAvailable:["+isControllerAvailable+"], statusPollingActive;["+statusPollingActive+"]");            
             if (isControllerAvailable && statusPollingActive) {
                 getServiceStatus("bloss");
                 getServiceStatus("geth");
