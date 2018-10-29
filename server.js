@@ -25,6 +25,20 @@ dotenv.load({ path: '.env' });
 * Create Express Server, http server and socket.io 
 */
 const app = express();
+app.use(express.json()); // Add JSON middleware
 const server = http.Server(app);
 server.listen(process.env.WS_PORT);
 var io = require("./modules/sockets")(server);
+
+/** 
+ * Define REST API for interaction with bloss-core
+ */
+
+app.post('/api/v1.0/report', (req,res) => {
+    logger.info("Received new report with body"+req.body);
+    console.log(req.body);      // your JSON
+
+    io.emit('reportChannel', {data: "report"});
+    
+    res.json({message:'Report delivered'});
+});
