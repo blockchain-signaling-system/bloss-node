@@ -1,6 +1,4 @@
 
-const logger = require('../logger');
-
 module.exports = {
     server: {
         host: process.env.CONTROLLER400,
@@ -11,7 +9,7 @@ module.exports = {
     },
     msg: {
         send: function (message) {
-            logger.info(process.env.SSH_USER + '@' + process.env.CONTROLLER400 + ' ' + message);
+            console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER400 + ' ' + message);
         }
     },
     debug: false

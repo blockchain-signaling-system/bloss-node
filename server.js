@@ -4,7 +4,7 @@
 * Module dependencies.
 */
 const express = require('express');
-const logger = require('./modules/logger');
+//const logger = require('./modules/console');
 const http = require('http');
 const socketio = require('socket.io');
 const dotenv = require('dotenv');
@@ -17,8 +17,8 @@ const chalk = require('chalk');
 /**
  * Start message
  */
-logger.info('Starting BloSS collector')
-logger.info('Listening on PORT: ' + process.env.WS_PORT);
+console.info('Starting BloSS collector')
+console.info('Listening on PORT: ' + process.env.WS_PORT);
 
 /**
  * Load environment variables from .env file
@@ -41,8 +41,8 @@ var io = require("./modules/sockets")(server);
  * Connect MongoDB with mongoose
  */
 mongoose.connect(process.env.MONGO_DB, { useNewUrlParser: true })
-    .then(() => logger.info('Connected to MongoDB'))
-    .catch(err => logger.error('Could not connect to MongoDB', err));
+    .then(() => console.info('Connected to MongoDB'))
+    .catch(err => console.error('Could not connect to MongoDB', err));
 
 // Define report schema
 const reportSchema = new mongoose.Schema({
@@ -68,12 +68,12 @@ app.post('/api/v1.0/report', (req, res) => {
         attack_report = JSON.parse(req.body);
     } catch (e) {
         attack_report = req.body;
-        // logger.info("NOT JSON");
+        // console.info("NOT JSON");
     }
 
     var bgHex = getRandomColor();
     var hex = getColorByBgColor(bgHex);
-    logger.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([attack_report.hash]) + " posted.")
+    console.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([attack_report.hash]) + " posted.")
 
     function getColorByBgColor(bgColor) {
         if (!bgColor) { return ''; }
@@ -115,8 +115,8 @@ app.post('/api/v1.0/report', (req, res) => {
 
         const result = await report.save();
         // console.log("We here" + result);
-        logger.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([result.hash]) + " persisted and relayed.")
-        // logger.info("New Report with hash "+ chalk.bgGreen.black.bold([result.hash]) +" saved and relayed.")
+        console.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([result.hash]) + " persisted and relayed.")
+        // console.info("New Report with hash "+ chalk.bgGreen.black.bold([result.hash]) +" saved and relayed.")
         io.emit('reportChannel', { data: result });
     }
 

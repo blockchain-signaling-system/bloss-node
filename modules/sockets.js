@@ -1,4 +1,3 @@
-const logger = require('./logger');
 const ssh2shell = require('ssh2shell');
 
 module.exports = function (server) {
@@ -10,29 +9,29 @@ module.exports = function (server) {
         var isControllerAvailable = false; // change back to false
         var statusPollingActive = false;
 
-        // console.log("Executing child process");
-        // var exec = require('child_process').exec, child;
-        // var cmd = 'ping -c 1 ' + process.env.CONTROLLER400;
-        // child = exec(cmd, function (error, stdout, stderr) {
-        //     if (error !== null) {
-        //         isControllerAvailable = false;
-        //         //logger.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
-        //     } else {
-        //         isControllerAvailable = true;
-        //         //logger.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
-        //     }
-        // });
+        console.log("Executing child process");
+        var exec = require('child_process').exec, child;
+        var cmd = 'ping -c 1 ' + process.env.CONTROLLER400;
+        child = exec(cmd, function (error, stdout, stderr) {
+            if (error !== null) {
+                isControllerAvailable = false;
+                //console.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
+            } else {
+                isControllerAvailable = true;
+                //console.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
+            }
+        });
 
         socket.on('isControllerAvailable', function(data){
-            logger.info("isControllerAvailable called");
+            console.info("isControllerAvailable called");
             socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
         });
 
         socket.on('statusPolling', function(data){
             statusPollingActive = !statusPollingActive;
-            logger.info("statusPollingActive changed to "+statusPollingActive);
+            console.info("statusPollingActive changed to "+statusPollingActive);
             if(!isControllerAvailable){
-                logger.info("Controller is not reachable.");
+                console.info("Controller is not reachable.");
             }
         });
 
@@ -41,15 +40,15 @@ module.exports = function (server) {
             if (isControllerAvailable) {
                 switch (data.cmd) {
                     case 'start':
-                        logger.info("Starting " + JSON.stringify(data.service));
+                        console.info("Starting " + JSON.stringify(data.service));
                         execSSH("sudo systemctl start " + data.service, data.service)
                         break;
                     case 'stop':
-                        logger.info("Stopping " + JSON.stringify(data.service));
+                        console.info("Stopping " + JSON.stringify(data.service));
                         execSSH("sudo systemctl stop " + data.service, data.service)
                         break;
                     default:
-                        logger.error("Something went wrong with this request" + JSON.stringify(data));
+                        console.error("Something went wrong with this request" + JSON.stringify(data));
                 }
 
             }
@@ -59,30 +58,30 @@ module.exports = function (server) {
         // TODO: Create Websocket and control to stop the interval / define thresholds
         // clearInterval(timerID); // The setInterval it cleared and doesn't run anymore.
         setInterval(function () {
-            //logger.info("Executing getServiceStatus Interval, isControllerAvailable:["+isControllerAvailable+"], statusPollingActive;["+statusPollingActive+"]");            
+            //console.info("Executing getServiceStatus Interval, isControllerAvailable:["+isControllerAvailable+"], statusPollingActive;["+statusPollingActive+"]");            
             if (isControllerAvailable && statusPollingActive) {
                 getServiceStatus("bloss");
                 getServiceStatus("geth");
                 getServiceStatus("ipfs");
             }else {
                 if(!isControllerAvailable)
-                logger.info("Status Retrieval failed because controller is not reachable");
+                console.info("Status Retrieval failed because controller is not reachable");
                 else if(!statusPollingActive)
-                logger.info("Status Retrieval is deactivated");
+                console.info("Status Retrieval is deactivated");
             }
         }, 15 * 1000);
 
         // A function to execute bash commands (cmd)
         // Second argument is used to immediatly trigger a service status update to the front end
         function execSSH(cmd, service) {
-            logger.info(cmd, service);
+            console.info(cmd, service);
             try {
                 const systemctlStatusBloss = require('./ssh/systemctl-status-bloss');
                 const sshExecutor = require('./sshexecutor')(server = systemctlStatusBloss.server, systemctlStatusBloss.commands, systemctlStatusBloss.msg, systemctlStatusBloss.debug, 'statusChannel');
                 var sshparams = sshExecutor.getSshExecutor();
                 sshparams.commands = [cmd];
                 sshparams.onEnd = function (sessionText, sshparams) {
-                    logger.info(JSON.stringify(sessionText));
+                    console.info(JSON.stringify(sessionText));
                     if (service != null) {
                         getServiceStatus(service);
                     }
@@ -93,7 +92,7 @@ module.exports = function (server) {
                 })
                 SSH.connect();
             } catch (error) {
-                logger.error(error);
+                console.error(error);
             }
         }
 
@@ -107,23 +106,23 @@ module.exports = function (server) {
                 var sshParamsForStatusRetrieval = sshExecutor.getSshExecutor();
                 sshParamsForStatusRetrieval.onEnd = function (sessionTextt) {
                     if (sessionTextt.includes("inactive")) {
-                        logger.info(serviceName + " is inactive");
+                        console.info(serviceName + " is inactive");
                         socket.emit('statusChannel', { [serviceName]: "inactive" });
                     } else if (sessionTextt.includes("active")) {
-                        logger.info(serviceName + " is active");
+                        console.info(serviceName + " is active");
                         socket.emit('statusChannel', { [serviceName]: "active" });
                     }
                 };
                 var SSH = new ssh2shell(sshParamsForStatusRetrieval);
                 SSH.on('end', function (sessionTextt) {
                     this.emit('msg', sessionTextt);
-                    logger.info('we here');
+                    console.info('we here');
                 })
                 SSH.connect();
 
 
             } catch (error) {
-                logger.error(error);
+                console.error(error);
             }
         }
     });
