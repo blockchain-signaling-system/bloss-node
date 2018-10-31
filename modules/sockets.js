@@ -10,20 +10,28 @@ module.exports = function (server) {
         var isControllerAvailable = false;
         var statusPollingActive = false;
 
-        var exec = require('child_process').exec, child;
-        var cmd = 'ping -c 1 ' + process.env.CONTROLLER400;
-        child = exec(cmd, function (error, stdout, stderr) {
-            if (error !== null) {
-                isControllerAvailable = false;
-                //logger.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
-            } else {
-                isControllerAvailable = true;
-                //logger.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
-            }
-        });
+        async function checkAvailability() {
+            var exec = require('child_process').exec, child;
+            var cmd = 'ping -c 2 ' + process.env.CONTROLLER400;
+            child = await exec(cmd, function (error, stdout, stderr) {
+                if (error !== null) {
+                    isControllerAvailable = false;
+                    logger.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
+                } else {
+                    isControllerAvailable = true;
+                    logger.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
+                }
+            });
+    
+            socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
+            //const result = await report.save();
+            //console.log(result);
+            //io.emit('reportChannel', { data: result });
+        }
 
         socket.on('isControllerAvailable', function(data){
             logger.info("isControllerAvailable called");
+            checkAvailability();
             socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
         });
 
