@@ -7,31 +7,24 @@ module.exports = function (server) {
 
         // Checks via simple ping -c1 if the configured controller is reachable 
         // (so we won't even try to SSH if it's unreachable)
-        var isControllerAvailable = false;
+        var isControllerAvailable = false; // change back to false
         var statusPollingActive = false;
 
-        async function checkAvailability() {
-            var exec = require('child_process').exec, child;
-            var cmd = 'ping -c 2 ' + process.env.CONTROLLER400;
-            child = await exec(cmd, function (error, stdout, stderr) {
-                if (error !== null) {
-                    isControllerAvailable = false;
-                    logger.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
-                } else {
-                    isControllerAvailable = true;
-                    logger.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
-                }
-            });
-    
-            socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
-            //const result = await report.save();
-            //console.log(result);
-            //io.emit('reportChannel', { data: result });
-        }
+        // console.log("Executing child process");
+        // var exec = require('child_process').exec, child;
+        // var cmd = 'ping -c 1 ' + process.env.CONTROLLER400;
+        // child = exec(cmd, function (error, stdout, stderr) {
+        //     if (error !== null) {
+        //         isControllerAvailable = false;
+        //         //logger.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
+        //     } else {
+        //         isControllerAvailable = true;
+        //         //logger.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
+        //     }
+        // });
 
         socket.on('isControllerAvailable', function(data){
             logger.info("isControllerAvailable called");
-            checkAvailability();
             socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
         });
 
@@ -41,7 +34,6 @@ module.exports = function (server) {
             if(!isControllerAvailable){
                 logger.info("Controller is not reachable.");
             }
-            // Emit back? 
         });
 
         // Endpoint for starting and stopping systemd services
@@ -138,4 +130,3 @@ module.exports = function (server) {
 
     return io;
 };
-
