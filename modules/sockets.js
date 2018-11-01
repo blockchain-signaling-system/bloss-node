@@ -1,36 +1,23 @@
 const ssh2shell = require('ssh2shell');
 
+var isControllerAvailable = false; // change back to false
+
 module.exports = function (server) {
     var io = require("socket.io").listen(server);
     io.sockets.on('connection', function (socket) {
+        console.info("New connection established.");
 
-        // Checks via simple ping -c1 if the configured controller is reachable 
-        // (so we won't even try to SSH if it's unreachable)
-        var isControllerAvailable = false; // change back to false
         var statusPollingActive = false;
 
-        console.log("Executing child process");
-        var exec = require('child_process').exec, child;
-        var cmd = 'ping -c 1 ' + process.env.CONTROLLER400;
-        child = exec(cmd, function (error, stdout, stderr) {
-            if (error !== null) {
-                isControllerAvailable = false;
-                //console.error("Status Retrieval won't start - The controller with IP [" + process.env.CONTROLLER400 + "] is not available");
-            } else {
-                isControllerAvailable = true;
-                //console.info("Status Retrieval starts - The controller with IP" + process.env.CONTROLLER400 + " is available");
-            }
-        });
-
-        socket.on('isControllerAvailable', function(data){
+        socket.on('isControllerAvailable', function (data) {
             console.info("isControllerAvailable called");
             socket.emit('isControllerAvailable', { "isControllerAvailable": isControllerAvailable });
         });
 
-        socket.on('statusPolling', function(data){
+        socket.on('statusPolling', function (data) {
             statusPollingActive = !statusPollingActive;
-            console.info("statusPollingActive changed to "+statusPollingActive);
-            if(!isControllerAvailable){
+            console.info("statusPollingActive changed to " + statusPollingActive);
+            if (!isControllerAvailable) {
                 console.info("Controller is not reachable.");
             }
         });
@@ -60,20 +47,21 @@ module.exports = function (server) {
         setInterval(function () {
             //console.info("Executing getServiceStatus Interval, isControllerAvailable:["+isControllerAvailable+"], statusPollingActive;["+statusPollingActive+"]");            
             if (isControllerAvailable && statusPollingActive) {
-                getServiceStatus("bloss");
-                getServiceStatus("geth");
-                getServiceStatus("ipfs");
-            }else {
-                if(!isControllerAvailable)
-                console.info("Status Retrieval failed because controller is not reachable");
-                else if(!statusPollingActive)
-                console.info("Status Retrieval is deactivated");
+                // getServiceStatus("bloss");
+                // getServiceStatus("geth");
+                // getServiceStatus("ipfs");
+            } else {
+                if (!isControllerAvailable)
+                    console.info("Status Retrieval failed because controller is not reachable");
+                else if (!statusPollingActive)
+                    console.info("Status Retrieval is deactivated");
             }
         }, 15 * 1000);
 
         // A function to execute bash commands (cmd)
         // Second argument is used to immediatly trigger a service status update to the front end
         function execSSH(cmd, service) {
+            console.info("ExecSSH invoked.");
             console.info(cmd, service);
             try {
                 const systemctlStatusBloss = require('./ssh/systemctl-status-bloss');
@@ -87,9 +75,9 @@ module.exports = function (server) {
                     }
                 };
                 var SSH = new ssh2shell(sshparams);
-                SSH.on('end', function (sessionText, sshparams) {
-                    this.emit('msg', sessionText);
-                })
+                // SSH.on('end', function (sessionText, sshparams) {
+                //     this.emit('msg', sessionText);
+                // })
                 SSH.connect();
             } catch (error) {
                 console.error(error);
@@ -99,9 +87,10 @@ module.exports = function (server) {
 
         // Function to retrieve the serviceName status on the controller configured in .env
         function getServiceStatus(serviceName) {
+            console.info("getServiceStatus invoked.");
             try {
                 const systemCtlIsActive = require('./ssh/systemctl-is-active');
-                command = ["sudo systemctl is-active " + serviceName];
+                var command = ["sudo systemctl is-active " + serviceName];
                 const sshExecutor = require('./sshexecutor')(server = systemCtlIsActive.server, commands = command, msg = systemCtlIsActive.msg, debug = systemCtlIsActive.debug, websocketChannel = 'statusChannel');
                 var sshParamsForStatusRetrieval = sshExecutor.getSshExecutor();
                 sshParamsForStatusRetrieval.onEnd = function (sessionTextt) {
@@ -119,8 +108,6 @@ module.exports = function (server) {
                     console.info('we here');
                 })
                 SSH.connect();
-
-
             } catch (error) {
                 console.error(error);
             }

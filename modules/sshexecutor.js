@@ -1,6 +1,3 @@
-
-var logger = require('./logger');
-
 class SSHExecutor {
     constructor(server,commands,msg,debug,websocketChannel) {
         this.server = server;
