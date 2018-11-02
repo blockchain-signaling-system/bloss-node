@@ -32,7 +32,7 @@ dotenv.load({ path: '.env' });
 */
 const app = express();
 // app.use(express.json()); // Add JSON middleware
-//app.use(express.json({strict: true})); // Add JSON middleware
+// app.use(express.json({strict: true})); // Add JSON middleware
 app.use(bodyParser.json({ strict: false }));
 const server = http.Server(app);
 server.listen(process.env.WS_PORT);
@@ -88,6 +88,7 @@ const Report = mongoose.model('Report', reportSchema);
  * Define REST API for interaction with bloss-core
  */
 app.post('/api/v1.0/report', (req, res) => {
+    console.log('/api/v1.0/report called');
     // This check is necessary for testing with Postman, data already arrives as JS Object and doesn't need parsing
     var attack_report;
     try {
@@ -186,11 +187,11 @@ setInterval(function () {
         setTimeout(function () {
             getServiceStatus("bloss");
             console.log('Adding some sleep.')
-        }, 2000)
+        }, 4000)
         setTimeout(function () {
             getServiceStatus("geth");
             console.log('Adding some sleep.')
-        }, 3000)
+        }, 4000)
         setTimeout(function () {
             getServiceStatus("ipfs");
             console.log('Adding some sleep.')
