@@ -14,7 +14,6 @@ const chalk = require('chalk');
 const axios = require('axios');
 
 global.controllerAvailability = false;
-global.statusPollingActive = true;
 
 /**
  * Start message
@@ -31,6 +30,10 @@ dotenv.load({ path: '.env' });
 * Create Express Server, http server and socket.io 
 */
 const app = express();
+
+/**
+ * TODO: Fix this JSON mess.
+ */
 // app.use(express.json()); // Add JSON middleware
 // app.use(express.json({strict: true})); // Add JSON middleware
 app.use(bodyParser.json({ strict: false }));
@@ -149,41 +152,22 @@ app.post('/api/v1.0/report', (req, res) => {
 });
 
 /**
- * Polling for CONTROLLER availability and emitting event upon changed parameter
+ * Polling statuses of processes on CONTROLLER
  */
 setInterval(function () {
-    console.log("axios.get(http:// + process.env.CONTROLLER + :6000/api/v1.0/ping");
-    axios.get('http://' + process.env.CONTROLLER + ':6000/api/v1.0/ping')
-        .then(response => {
-            if (response.status === 201) {
-                console.info('global.controllerAvailability set true');
-                global.controllerAvailability = true;
-            } else {
-                console.info('global.controllerAvailability set false');
-                global.controllerAvailability = false;
-            }
-            console.info("Emitting isControllerAvailable to WS");
-            io.emit('isControllerAvailable', {
-                "controllerAvailability": global.controllerAvailability,
-            });
-        })
-        .catch(error => {
-            console.info("Emitting isControllerAvailable to WS");
-            io.emit('isControllerAvailable', {
-                "controllerAvailability": global.controllerAvailability,
-            });
-            global.controllerAvailability = false;
-            console.error('global.controllerAvailability set false');
-        });
-
+    global.controllerAvailability = true;
+    io.emit('isControllerAvailable', {
+        "controllerAvailability": global.controllerAvailability,
+    });
+    console.log("emitting isControllerAvailable");
 }, 15 * 1000);
 
 /**
  * Polling statuses of processes on CONTROLLER
  */
 setInterval(function () {
-    console.info("Executing getServiceStatus Interval, global.controllerAvailability:[" + global.controllerAvailability + "], global.statusPollingActive;[" + global.statusPollingActive + "]");
-    if (global.controllerAvailability && global.statusPollingActive) {
+    console.info("Executing getServiceStatus Interval, global.controllerAvailability:[" + global.controllerAvailability + "]");
+    if (global.controllerAvailability) {
         setTimeout(function () {
             getServiceStatus("bloss");
             console.log('Adding some sleep.')
@@ -197,10 +181,9 @@ setInterval(function () {
             console.log('Adding some sleep.')
         }, 4000)
     } else {
-        if (!global.controllerAvailability)
+        if (!global.controllerAvailability) {
             console.info("Status Retrieval failed because controller is not reachable");
-        else if (!global.statusPollingActive)
-            console.info("Status Retrieval is deactivated");
+        }
     }
 }, 15 * 1000);
 
