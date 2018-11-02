@@ -41,15 +41,8 @@ server.listen(process.env.WS_PORT);
 var io = require("socket.io")(server);
 io.on('connection', function (socket) {
     console.info("connection established")
-    socket.on('isControllerAvailableRequest', function (data) {
-        console.info("isControllerAvailableRequest received");
-        socket.emit('isControllerAvailableRequest', {
-            "controllerAvailability": global.controllerAvailability,
-        });
-    });
-
     socket.on('serviceControlRequest', function (data) {
-        console.info("serviceControlRequest received"); 
+        console.info("serviceControlRequest received");
         if (global.controllerAvailability) {
             switch (data.cmd) {
                 case 'start':
@@ -154,22 +147,11 @@ app.post('/api/v1.0/report', (req, res) => {
     res.json({ message: 'Report delivered' });
 });
 
-
-
-
-
-// socket.on('statusPolling', function (data) {
-//     statusPollingActive = !statusPollingActive;
-//     console.info("statusPollingActive changed to " + statusPollingActive);
-//     if (!isControllerAvailable) {
-//         console.info("Controller is not reachable.");
-//     }
-// });
-
 /**
- * Polling for CONTROLLER availability
+ * Polling for CONTROLLER availability and emitting event upon changed parameter
  */
 setInterval(function () {
+    console.log("axios.get(http:// + process.env.CONTROLLER + :6000/api/v1.0/ping");
     axios.get('http://' + process.env.CONTROLLER + ':6000/api/v1.0/ping')
         .then(response => {
             if (response.status === 201) {
@@ -179,31 +161,40 @@ setInterval(function () {
                 console.info('global.controllerAvailability set false');
                 global.controllerAvailability = false;
             }
+            console.info("Emitting isControllerAvailable to WS");
+            io.emit('isControllerAvailable', {
+                "controllerAvailability": global.controllerAvailability,
+            });
         })
         .catch(error => {
+            console.info("Emitting isControllerAvailable to WS");
+            io.emit('isControllerAvailable', {
+                "controllerAvailability": global.controllerAvailability,
+            });
             global.controllerAvailability = false;
             console.error('global.controllerAvailability set false');
         });
+
 }, 15 * 1000);
 
 /**
  * Polling statuses of processes on CONTROLLER
  */
 setInterval(function () {
-    console.info("Executing getServiceStatus Interval, global.controllerAvailability:["+global.controllerAvailability+"], global.statusPollingActive;["+global.statusPollingActive+"]");            
+    console.info("Executing getServiceStatus Interval, global.controllerAvailability:[" + global.controllerAvailability + "], global.statusPollingActive;[" + global.statusPollingActive + "]");
     if (global.controllerAvailability && global.statusPollingActive) {
-        getServiceStatus("bloss");
         setTimeout(function () {
+            getServiceStatus("bloss");
             console.log('Adding some sleep.')
-          }, 3000)
-        getServiceStatus("geth");
+        }, 2000)
         setTimeout(function () {
+            getServiceStatus("geth");
             console.log('Adding some sleep.')
-          }, 3000)
-        getServiceStatus("ipfs");
+        }, 3000)
         setTimeout(function () {
+            getServiceStatus("ipfs");
             console.log('Adding some sleep.')
-          }, 3000)
+        }, 4000)
     } else {
         if (!global.controllerAvailability)
             console.info("Status Retrieval failed because controller is not reachable");
@@ -225,7 +216,7 @@ function execSSH(cmd, service) {
         server.port = process.env.SSH_PORT;
         server.userName = process.env.SSH_USER;
         server.privateKey = require('fs').readFileSync(process.env.SSH_KEY);
-        
+
         var msg = {};
         msg.send = function (message) {
             console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
@@ -270,14 +261,14 @@ function getServiceStatus(serviceName) {
             console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
         }
         var command = ["sudo systemctl is-active " + serviceName];
-        var hosts = { };     
+        var hosts = {};
         hosts = {
             server: server,
             commands: command,
             msg: msg,
             debug: true,
             verbose: true
-        };        
+        };
         hosts.onEnd = function (sessionText) {
             if (sessionText.includes("inactive")) {
                 console.info(serviceName + " is inactive");
