@@ -74,7 +74,9 @@ mongoose.connect(process.env.MONGO_DB, { useNewUrlParser: true })
     .then(() => console.info('Connected to MongoDB'))
     .catch(err => console.error('Could not connect to MongoDB', err));
 
-// Define report schema
+/**
+ * mongoos schema of attack reports
+ */
 const reportSchema = new mongoose.Schema({
     hash: String,
     target: String,
@@ -82,7 +84,8 @@ const reportSchema = new mongoose.Schema({
     created: { type: Date, default: Date.now },
     action: String,
     subnetwork: String,
-    addresses: [String]
+    addresses: [String],
+    status: { type: String, default: "T_REQUESTS" },
 });
 const Report = mongoose.model('Report', reportSchema);
 
@@ -171,15 +174,15 @@ setInterval(function () {
         setTimeout(function () {
             getServiceStatus("bloss");
             console.log('Adding some sleep.')
-        }, 4000)
+        }, 2000);
         setTimeout(function () {
             getServiceStatus("geth");
             console.log('Adding some sleep.')
-        }, 4000)
+        }, 4000);
         setTimeout(function () {
             getServiceStatus("ipfs");
             console.log('Adding some sleep.')
-        }, 4000)
+        }, 6000);
     } else {
         if (!global.controllerAvailability) {
             console.info("Status Retrieval failed because controller is not reachable");
