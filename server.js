@@ -41,27 +41,56 @@ const server = http.Server(app);
 server.listen(process.env.WS_PORT);
 //var io = require("./modules/sockets")(server);
 
+/**
+ * Declare websocket endpoints
+ */
 var io = require("socket.io")(server);
 io.on('connection', function (socket) {
     console.info("connection established")
+    /**
+     * Receives controls regarding MREQs
+     */
+    socket.on('responseMREQ', function (data) {
+        console.info("responseMREQ for " + data.hash + " is " + data.action);
+        if (global.controllerAvailability) {
+            switch (data.action) {
+                case 'decline':
+                    // Change status to M_DECLINES in MongoDB
+                    // Send new status to Controller
+                    // Send command to rest-endpoint on bloss-core
+                    console.info("declined for " + data.hash + " is " + data.action);
+                    break;
+                case 'accept':
+                    // Change status to M_DECLINES in MongoDB
+                    // Send new status to Controller
+                    // Send command to rest-endpoint on bloss-core
+                    console.info("accept for " + data.hash + " is " + data.action);
+                    break;
+                default:
+                    console.error("Something went wrong with this request" + JSON.stringify(data));
+            }
+        }
+    });
+
+    /**
+     * Controls services on the controller
+     */
     socket.on('serviceControlRequest', function (data) {
         console.info("serviceControlRequest received");
         if (global.controllerAvailability) {
             switch (data.cmd) {
                 case 'start':
                     console.info("Starting " + JSON.stringify(data.service));
-                    execSSH("sudo systemctl start " + data.service, data.service)
+                    execSSH("sudo systemctl start " + data.service, data.service);
                     break;
                 case 'stop':
                     console.info("Stopping " + JSON.stringify(data.service));
-                    execSSH("sudo systemctl stop " + data.service, data.service)
+                    execSSH("sudo systemctl stop " + data.service, data.service);
                     break;
                 default:
                     console.error("Something went wrong with this request" + JSON.stringify(data));
             }
-
         }
-
     });
 });
 
