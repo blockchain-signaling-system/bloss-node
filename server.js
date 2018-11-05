@@ -19,12 +19,12 @@ global.controllerAvailability = false;
  * Start message
  */
 console.info('Starting BloSS collector')
-console.info('Listening on PORT: ' + process.env.WS_PORT);
 
 /**
  * Load environment variables from .env file
  */
 dotenv.load({ path: '.env' });
+console.info('Listening on PORT: ' + process.env.WS_PORT);
 
 /**
 * Create Express Server, http server and socket.io 
@@ -51,24 +51,9 @@ io.on('connection', function (socket) {
      * Receives controls regarding MREQs
      */
     socket.on('responseMREQ', function (data) {
-        console.info("responseMREQ for " + data.hash + " is " + data.action);
+        console.info("responseMREQ for " + data._id + " is " + data.action);
         if (global.controllerAvailability) {
-            switch (data.action) {
-                case 'decline':
-                    // Change status to M_DECLINES in MongoDB
-                    // Send new status to Controller
-                    // Send command to rest-endpoint on bloss-core
-                    console.info("declined for " + data.hash + " is " + data.action);
-                    break;
-                case 'accept':
-                    // Change status to M_DECLINES in MongoDB
-                    // Send new status to Controller
-                    // Send command to rest-endpoint on bloss-core
-                    console.info("accept for " + data.hash + " is " + data.action);
-                    break;
-                default:
-                    console.error("Something went wrong with this request" + JSON.stringify(data));
-            }
+            updateAttackReport(data._id, data.action);
         }
     });
 
@@ -95,7 +80,6 @@ io.on('connection', function (socket) {
 });
 
 
-
 /**
  * Connect MongoDB with mongoose
  */
@@ -118,6 +102,40 @@ const reportSchema = new mongoose.Schema({
 });
 const Report = mongoose.model('Report', reportSchema);
 
+
+function updateAttackReport(id, action) {
+    console.log("Trying to find report with hash+" + id);
+
+    async function findReport(id) {
+        // Query
+        const updateReport = await Report.findById(id);
+        // Modify
+        updateReport.status = action;
+        // Save
+        const result = await updateReport.save();
+        // Log
+        console.info("Changed " + result.id + " to " + result.status)
+        io.emit('reportChannel', { data: result });
+        // console.log(result.status);
+        // console.log(result);
+        switch (action) {
+            case 'M_DECLINED':
+                // Send command to rest-endpoint on bloss-core
+                console.info("declined for " + id + " is " + action);
+                break;
+            case 'M_APPROVED':
+                // Send command to rest-endpoint on bloss-core
+                console.info("accept for " + id + " is " + action);
+                break;
+            default:
+                console.error("Something went wrong with this request");
+        }
+    }
+
+    findReport(id);
+
+
+}
 
 /** 
  * Define REST API for interaction with bloss-core
@@ -161,10 +179,8 @@ app.post('/api/v1.0/report', (req, res) => {
     }
     var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
     //console.log(timestamp);
-
     // This should only be called when the hash of the new report HAS NOT YET BEEN SAVED.
     createReport();
-
     async function createReport() {
         const report = new Report({
             hash: attack_report.hash,
@@ -172,10 +188,12 @@ app.post('/api/v1.0/report', (req, res) => {
             timestamp: timestamp,
             action: attack_report.action,
             subnetwork: attack_report.subnetwork,
-            addresses: attack_report.addresses
+            addresses: attack_report.addresses,
+            status: attack_report.status
         })
 
         const result = await report.save();
+
         console.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([result.hash]) + " persisted and relayed.")
         io.emit('reportChannel', { data: result });
     }
@@ -203,15 +221,15 @@ setInterval(function () {
         setTimeout(function () {
             getServiceStatus("bloss");
             console.log('Adding some sleep.')
-        }, 2000);
+        }, 1000);
         setTimeout(function () {
             getServiceStatus("geth");
             console.log('Adding some sleep.')
-        }, 4000);
+        }, 1000);
         setTimeout(function () {
             getServiceStatus("ipfs");
             console.log('Adding some sleep.')
-        }, 6000);
+        }, 1000);
     } else {
         if (!global.controllerAvailability) {
             console.info("Status Retrieval failed because controller is not reachable");
@@ -235,7 +253,7 @@ function execSSH(cmd, service) {
 
         var msg = {};
         msg.send = function (message) {
-            console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
+            // console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
         }
 
         var sshparams = {};
@@ -247,10 +265,11 @@ function execSSH(cmd, service) {
             verbose: true
         };
         sshparams.onEnd = function (sessionText, sshparams) {
-            console.info(JSON.stringify(sessionText));
-            if (service != null) {
-                getServiceStatus(service);
-            }
+            // console.info(JSON.stringify(sessionText));
+            // console.info('Got some sessionText');
+            // if (service != null) {
+            //     getServiceStatus(service);
+            // }
         };
         var SSH = new ssh2shell(sshparams);
         SSH.on('end', function (sessionText, sshparams) {
@@ -258,7 +277,8 @@ function execSSH(cmd, service) {
         })
         SSH.connect();
     } catch (error) {
-        console.error(error);
+        // console.error(error);
+        console.error('There has been an error while querying via ssh');
     }
 }
 
@@ -274,7 +294,7 @@ function getServiceStatus(serviceName) {
 
         var msg = {};
         msg.send = function (message) {
-            console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
+            // console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
         }
         var command = ["sudo systemctl is-active " + serviceName];
         var hosts = {};
