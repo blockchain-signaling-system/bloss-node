@@ -142,6 +142,7 @@ function updateAttackReport(id, action) {
  */
 app.post('/api/v1.0/report', (req, res) => {
     console.log('/api/v1.0/report called');
+
     // This check is necessary for testing with Postman, data already arrives as JS Object and doesn't need parsing
     var attack_report;
     try {
@@ -151,54 +152,73 @@ app.post('/api/v1.0/report', (req, res) => {
         // console.info("NOT JSON");
     }
 
-    var bgHex = getRandomColor();
-    var hex = getColorByBgColor(bgHex);
-    console.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([attack_report.hash]) + " posted.")
+    try {
+        //Step 1: declare promise
+        var checkDuplicatePromise = () => {
+            return new Promise((resolve, reject) => {
+                Report.find({ hash: attack_report.hash }, function (err, data) {
+                    err
+                        ? reject(err)
+                        : resolve(data);
+                });
+            });
+        };
 
-    function getColorByBgColor(bgColor) {
-        if (!bgColor) { return ''; }
-        return (parseInt(bgColor.replace('#', ''), 16) > 0xffffff / 2) ? '#000' : '#fff';
+        var persistAttackReportPromise = () => {
+            return new Promise((resolve, reject) => {
+                // Timestamps sent from Bloss are not correctly formatted (2018-10-30-07:41:09 instead of 2018-10-30T07:41:09)
+                var bodyTimeStampClean = replaceAt(attack_report.timestamp, 10, "T")
+                function replaceAt(substring, index, replacement) {
+                    if (substring != null) {
+                        return substring.substr(0, index) + replacement + substring.substr(index + replacement.length);
+                    }
+                    else return null;
+                }
+                var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
+
+                const report = new Report({
+                    hash: attack_report.hash,
+                    target: attack_report.target,
+                    timestamp: timestamp,
+                    action: attack_report.action,
+                    subnetwork: attack_report.subnetwork,
+                    addresses: attack_report.addresses,
+                    status: attack_report.status
+                });
+
+                report.save(function (err, data) {
+                    if(err){
+                        console.error("There has been a problem while saving",err);
+                    }else{
+                        console.info("New Report with hash " + data.hash + " persisted and relayed.")
+                        io.emit('reportChannel', { data: data });
+                        res.json({ message: 'Report persisted', data: data });
+                    }
+                });
+            });
+        };
+
+        //Step 2: async promise handler
+        var callCheckDuplicatePromise = async () => {
+            var result = await (checkDuplicatePromise());
+            if (result.length > 0) {
+                console.info("There is already an attack report with hash:" + result[0].hash);
+            } else {
+                console.log("Calling persistAttackReportPromise");
+                var persist = await (persistAttackReportPromise());
+                //anything here is executed after result is resolved
+            }
+        };
+
+        //Step 3: make the call
+        callCheckDuplicatePromise().then(function (result) {
+            res.json({ message: 'Report already persisted' });
+        });
+    } catch (e) {
+        next(e)
     }
 
-    function getRandomColor() {
-        var letters = '0123456789ABCDEF';
-        var color = '#';
-        for (var i = 0; i < 6; i++) {
-            color += letters[Math.floor(Math.random() * 16)];
-        }
-        return color;
-    }
 
-    // Timestamps sent from Bloss are not correctly formatted (2018-10-30-07:41:09 instead of 2018-10-30T07:41:09)
-    var bodyTimeStampClean = replaceAt(attack_report.timestamp, 10, "T")
-    function replaceAt(substring, index, replacement) {
-        if (substring != null) {
-            return substring.substr(0, index) + replacement + substring.substr(index + replacement.length);
-        }
-        else return null;
-    }
-    var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
-    //console.log(timestamp);
-    // This should only be called when the hash of the new report HAS NOT YET BEEN SAVED.
-    createReport();
-    async function createReport() {
-        const report = new Report({
-            hash: attack_report.hash,
-            target: attack_report.target,
-            timestamp: timestamp,
-            action: attack_report.action,
-            subnetwork: attack_report.subnetwork,
-            addresses: attack_report.addresses,
-            status: attack_report.status
-        })
-
-        const result = await report.save();
-
-        console.info("New Report with hash " + chalk.hex(hex).bgHex(bgHex).bold([result.hash]) + " persisted and relayed.")
-        io.emit('reportChannel', { data: result });
-    }
-
-    res.json({ message: 'Report delivered' });
 });
 
 /**
