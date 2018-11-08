@@ -12,45 +12,57 @@ const bodyParser = require('body-parser')
 const mongoose = require('mongoose');
 const chalk = require('chalk');
 const axios = require('axios');
+var request = require("request");
 
+/** 
+ * Declaring logging relevant variables
+ */
 var fs = require('fs');
 var util = require('util');
-var log_file = fs.createWriteStream(__dirname + '/debug.log', { flags: 'w' });
+var log_file = fs.createWriteStream(__dirname + '/log.log', { flags: 'w' });
+var error_file = fs.createWriteStream(__dirname + '/error.log', { flags: 'w' });
+var error_prefix = chalk.hex("#282828").bgHex("#c6455b").bold(" ERROR ") + " ";
+var log_prefix = chalk.hex("#282828").bgHex("#a0a0a0").bold(" LOG ") + " ";
+var info_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" INFO ") + " ";
+var WS_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" WS ") + " ";
+var API_prefix = chalk.hex("#282828").bgHex("#43C59E").bold(" API ") + " ";
+var API_report = chalk.hex("#282828").bgHex("#43C59E").bold(" REPORT ") + " ";
+var API_post = chalk.hex("#282828").bgHex("#43C59E").bold(" POST ") + " ";
+var API_success = chalk.hex("#282828").bgHex("#D2FF28").bold(" SUCCESS ") + " ";
+var API_duplicate = chalk.hex("#282828").bgHex("#c6455b").bold(" DUPLICATE ") + " ";
+
 var log_stdout = process.stdout;
 console.log = function (d) { //
     log_file.write(util.format(d) + '\n');
-    log_stdout.write(util.format(d) + '\n');
+    log_stdout.write(log_prefix + util.format(d) + '\n');
+};
+console.error = function (d) { //
+    error_file.write(util.format(d) + '\n');
+    log_stdout.write(error_prefix + util.format(d) + '\n');
+};
+console.info = function (d) { //
+    log_file.write(util.format(d) + '\n');
+    log_stdout.write(info_prefix + util.format(d) + '\n');
 };
 
-
-global.controllerAvailability = false;
-
 /**
- * Start message
+ * Global variables
  */
-console.info('Starting BloSS collector')
+global.controllerAvailability = false;
 
 /**
  * Load environment variables from .env file
  */
 dotenv.load({ path: '.env' });
-console.info('Listening on PORT: ' + process.env.WS_PORT);
+console.info('Websocket and REST listening on: ' + process.env.WS_PORT);
 
 /**
 * Create Express Server, http server and socket.io 
 */
 const app = express();
-
-/**
- * TODO: Fix this JSON mess.
- */
-// app.use(express.json()); // Add JSON middleware
-// app.use(express.json({strict: true})); // Add JSON middleware
 app.use(bodyParser.json({ strict: false }));
-// app.use(bodyParser.json());
 const server = http.Server(app);
 server.listen(process.env.WS_PORT);
-//var io = require("./modules/sockets")(server);
 
 /**
  * Declare websocket endpoints
@@ -62,7 +74,7 @@ io.on('connection', function (socket) {
      * Receives controls regarding MREQs
      */
     socket.on('responseMREQ', function (data) {
-        console.info("responseMREQ for " + data._id + " is " + data.action);
+        // console.info("responseMREQ for " + data._id + " is " + data.action);
         if (global.controllerAvailability) {
             updateAttackReport(data._id, data.action);
         }
@@ -99,7 +111,7 @@ mongoose.connect(process.env.MONGO_DB, { useNewUrlParser: true })
     .catch(err => console.error('Could not connect to MongoDB', err));
 
 /**
- * mongoos schema of attack reports
+ * Declare mongoose schema of attack reports
  */
 const reportSchema = new mongoose.Schema({
     hash: String,
@@ -114,49 +126,31 @@ const reportSchema = new mongoose.Schema({
 const Report = mongoose.model('Report', reportSchema);
 
 
+/**
+ * 
+ * This method updates attack reports status to 'action' iff a report with _id exists
+ * @param {String} id a MongoDB _id that is unique for each entry 
+ * @param {String} action the new attack_report status: [M_APPROVED] or [M_DECLINED]
+ */
 function updateAttackReport(id, action) {
-    console.log("Trying to find report with hash+" + id);
-
-    async function findReport(id) {
-        // Query
-        const updateReport = await Report.findById(id);
-        // Modify
-        updateReport.status = action;
-        // Save
-        const result = await updateReport.save();
-        // Log
-        console.info("Changed " + result.id + " to " + result.status)
-        // Emitting update back to client
-        io.emit('reportChannel', { data: result });
-        // Logging object 
-        console.log(result);
+    async function queryAndModify(id) {
+        const updateReport = await Report.findById(id); // Query
+        updateReport.status = action; // Modify        
+        const result = await updateReport.save(); // Save
+        console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " ");
+        io.emit('reportChannel', { data: result }); // Emitting update back to client
 
         switch (result.status) {
             case 'M_DECLINED':
-                // Send command to rest-endpoint on bloss-core
-                console.info("declined for " + id + " is " + action);
-                // We don't need to do anything since it's been declined. 
+                // console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 break;
             case 'M_APPROVED':
-                // Send command to rest-endpoint on bloss-core
-                console.info("accept for " + id + " is " + action);
-                console.log(result.addresses);
-                console.log(JSON.stringify(result.addresses));
-                console.log(result.addresses.length);
-
-                // var myTruncatedString = myString.substring(0,length);
-                console.log("Before" + result.timestamp);
+                // console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 var ts = JSON.stringify(result.timestamp);
-                console.log("ts:" + ts);
                 var ts_date = ts.substring(1, 11) + "-";
-                console.log("ts_date:" + ts_date);
-
                 var ts_time = ts.substring(12, 20);
-                console.log("ts_time:" + ts_time);
-
                 var ts_for_post = ts_date + ts_time;
 
-                var request = require("request");
                 var options = {
                     method: 'POST',
                     url: 'http://172.10.15.17:6001/api/v1.0/mitigate',
@@ -178,61 +172,36 @@ function updateAttackReport(id, action) {
                 };
 
                 request(options, function (error, response, body) {
-                    if (error) throw new Error(error);
-                    console.log(body);
-                    console.log(response)
+                    if (error) {
+                        console.error(error.message);
+                    }
                 });
-
-                // var addressArray = [];
-                // addressArray = JSON.parse(JSON.stringify(result.addresses));
-                // console.log(addressArray);
-
-                // axios.post(process.env.ENDPOINT_BLOSS + '/api/v1.0/mitigatereport', {
-                //     "hash": parseInt(result.hash),
-                //     "target": result.target,
-                //     "timestamp": ts_for_post,
-                //     "action": result.action,
-                //     "subnetwork": result.subnetwork,
-                //     "addresses": result.addresses
-                // })
-                //     .then(function (response) {
-                //         console.log(response.status);
-                //     })
-                //     .catch(function (error) {
-                //         console.log(error);
-                //         console.log("There has been an error");
-                //     });
                 break;
             default:
-                console.error("Something went wrong with this request");
+                console.error("Something went wrong with this request.", id, action);
         }
     }
-    findReport(id);
+    queryAndModify(id);
 }
 
 /** 
- * Define REST API for interaction with bloss-core
+ * This endpoint receives reports from bloss-core, 
+ * A) saves them to MongoDB
+ * B) then relays them to bloss-dashboard
  */
 app.post('/api/v1.0/report', (req, res) => {
-    console.log('/api/v1.0/report called');
-
-    console.log("Target" + req.body.target);
-
     // This check is necessary for testing with Postman, data already arrives as JS Object and doesn't need parsing
     var attack_report;
     try {
         attack_report = JSON.parse(req.body);
     } catch (e) {
         attack_report = req.body;
-        // console.info("NOT JSON");
     }
-
-    console.log(attack_report);
+    console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " ");
 
     try {
-        //Step 1: declare promise
+        // Step 1: declare promise
         var checkDuplicatePromise = () => {
-            // console.log(attack_report);
             return new Promise((resolve, reject) => {
                 Report.find({ hash: attack_report.hash }, function (err, data) {
                     err
@@ -253,7 +222,6 @@ app.post('/api/v1.0/report', (req, res) => {
                     else return null;
                 }
                 var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
-
                 const report = new Report({
                     hash: attack_report.hash,
                     target: attack_report.target,
@@ -263,12 +231,11 @@ app.post('/api/v1.0/report', (req, res) => {
                     addresses: attack_report.addresses,
                     status: attack_report.status
                 });
-
                 report.save(function (err, data) {
                     if (err) {
                         console.error("There has been a problem while saving", err);
                     } else {
-                        console.info("New Report with hash " + data.hash + " persisted and relayed.")
+                        console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_success);
                         io.emit('reportChannel', { data: data });
                         res.json({ message: 'Report persisted', data: data });
                     }
@@ -276,20 +243,18 @@ app.post('/api/v1.0/report', (req, res) => {
             });
         };
 
-        //Step 2: async promise handler
+        // Step 2: async promise handler
         var callCheckDuplicatePromise = async () => {
-            console.log("Calling checkDuplicatePromise");
             var result = await (checkDuplicatePromise());
             if (result.length > 0) {
-                console.info("There is already an attack report with hash:" + result[0].hash);
+                console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an attack report with hash:" + result[0].hash);
             } else {
-                console.log("Calling persistAttackReportPromise");
-                var persist = await (persistAttackReportPromise());
                 //anything here is executed after result is resolved
+                var persist = await (persistAttackReportPromise());
             }
         };
 
-        //Step 3: make the call
+        // Step 3: make the call
         callCheckDuplicatePromise().then(function (result) {
             res.json({ message: 'Report already persisted' });
         });
@@ -297,6 +262,7 @@ app.post('/api/v1.0/report', (req, res) => {
         next(e)
     }
 });
+
 
 app.post('/api/v1.0/get-report', (req, res) => {
     console.log('/api/v1.0/get-report called');
@@ -362,26 +328,21 @@ setInterval(function () {
     io.emit('isControllerAvailable', {
         "controllerAvailability": global.controllerAvailability,
     });
-    console.log("emitting isControllerAvailable");
 }, 15 * 1000);
 
 /**
  * Polling statuses of processes on CONTROLLER
  */
 setInterval(function () {
-    console.info("Executing getServiceStatus Interval, global.controllerAvailability:[" + global.controllerAvailability + "]");
     if (global.controllerAvailability) {
         setTimeout(function () {
             getServiceStatus("bloss");
-            // console.log('Adding some sleep.')
         }, 1000);
         setTimeout(function () {
             getServiceStatus("geth");
-            // console.log('Adding some sleep.')
         }, 1000);
         setTimeout(function () {
             getServiceStatus("ipfs");
-            // console.log('Adding some sleep.')
         }, 1000);
     } else {
         if (!global.controllerAvailability) {
@@ -391,7 +352,7 @@ setInterval(function () {
 }, 15 * 1000);
 
 /**
- * Execute SSH commands on remote controller
+ * Executes commands on remote controller via SSH
  */
 function execSSH(cmd, service) {
     console.info("ExecSSH invoked.");
@@ -418,11 +379,6 @@ function execSSH(cmd, service) {
             verbose: true
         };
         sshparams.onEnd = function (sessionText, sshparams) {
-            // console.info(JSON.stringify(sessionText));
-            // console.info('Got some sessionText');
-            // if (service != null) {
-            //     getServiceStatus(service);
-            // }
         };
         var SSH = new ssh2shell(sshparams);
         SSH.on('end', function (sessionText, sshparams) {
@@ -430,15 +386,12 @@ function execSSH(cmd, service) {
         })
         SSH.connect();
     } catch (error) {
-        // console.error(error);
-        console.error('There has been an error while querying via ssh');
+        console.error('There has been an error while querying via ssh.');
     }
 }
 
 function getServiceStatus(serviceName) {
-    // console.info("getServiceStatus invoked.");
     try {
-
         var server = {};
         server.host = process.env.CONTROLLER;
         server.port = process.env.SSH_PORT;
@@ -446,9 +399,7 @@ function getServiceStatus(serviceName) {
         server.privateKey = require('fs').readFileSync(process.env.SSH_KEY);
 
         var msg = {};
-        msg.send = function (message) {
-            // console.log(process.env.SSH_USER + '@' + process.env.CONTROLLER + ' ' + message);
-        }
+        msg.send = function (message) { }
         var command = ["sudo systemctl is-active " + serviceName];
         var hosts = {};
         hosts = {
@@ -460,10 +411,8 @@ function getServiceStatus(serviceName) {
         };
         hosts.onEnd = function (sessionText) {
             if (sessionText.includes("inactive")) {
-                // console.info(serviceName + " is inactive");
                 io.emit('statusChannel', { [serviceName]: "inactive" });
             } else if (sessionText.includes("active")) {
-                // console.info(serviceName + " is active");
                 io.emit('statusChannel', { [serviceName]: "active" });
             }
         };
@@ -473,9 +422,21 @@ function getServiceStatus(serviceName) {
             console.info('we here');
         })
         SSH.connect();
-
-
     } catch (error) {
         console.error(error);
     }
+}
+
+function getColorByBgColor(bgColor) {
+    if (!bgColor) { return ''; }
+    return (parseInt(bgColor.replace('#', ''), 16) > 0xffffff / 2) ? '#000' : '#fff';
+}
+
+function getRandomColor() {
+    var letters = '0123456789ABCDEF';
+    var color = '#';
+    for (var i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
 }
