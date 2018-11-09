@@ -45,6 +45,7 @@ console.info = function (d) { //
     log_stdout.write(info_prefix + util.format(d) + '\n');
 };
 
+
 /**
  * Global variables
  */
@@ -54,7 +55,39 @@ global.controllerAvailability = false;
  * Load environment variables from .env file
  */
 dotenv.load({ path: '.env' });
-console.info('Websocket and REST listening on: ' + process.env.WS_PORT);
+
+/**
+ * Initialize variables depending on CONTROLLER
+ */
+var WEBSOCKET_PORT;
+var CONTROLLER_IP;
+var SUBNET;
+if (!WEBSOCKET_PORT && !CONTROLLER_IP && !SUBNET) {
+    switch (process.env.CONTROLLER) {
+        case 'CONTROLLER400':
+            console.info("Loading config for Controller400");
+            WEBSOCKET_PORT = process.env.C400_WS_PORT;
+            CONTROLLER_IP = process.env.C400_CONTROLLER_IP;
+            SUBNET = process.env.C400_SUBNET
+            break;
+        case 'CONTROLLER500':
+            console.info("Loading config for Controller500");
+            WEBSOCKET_PORT = process.env.C500_WS_PORT;
+            CONTROLLER_IP = process.env.C500_CONTROLLER_IP;
+            SUBNET = process.env.C500_SUBNET;
+            break;
+        case 'CONTROLLER600':
+            console.info("Loading config for Controller600");
+            CONTROLLER_IP = process.env.C600_CONTROLLER_IP;
+            WEBSOCKET_PORT = process.env.C600_WS_PORT;
+            SUBNET = process.env.C600_SUBNET
+            break;
+        default:
+            console.error('Initializing .env failed');
+            break;
+    }
+}
+
 
 /**
 * Create Express Server, http server and socket.io 
@@ -62,7 +95,8 @@ console.info('Websocket and REST listening on: ' + process.env.WS_PORT);
 const app = express();
 app.use(bodyParser.json({ strict: false }));
 const server = http.Server(app);
-server.listen(process.env.WS_PORT);
+server.listen(WEBSOCKET_PORT);
+console.info('Websocket and REST listening on: ' + WEBSOCKET_PORT);
 
 /**
  * Declare websocket endpoints
@@ -106,7 +140,7 @@ io.on('connection', function (socket) {
 /**
  * Connect MongoDB with mongoose
  */
-mongoose.connect(process.env.MONGO_DB, { useNewUrlParser: true })
+mongoose.connect(process.env.MONGO_DB_REPORTS, { useNewUrlParser: true })
     .then(() => console.info('Connected to MongoDB'))
     .catch(err => console.error('Could not connect to MongoDB', err));
 
@@ -153,7 +187,7 @@ function updateAttackReport(id, action) {
 
                 var options = {
                     method: 'POST',
-                    url: 'http://172.10.15.17:6001/api/v1.0/mitigate',
+                    url: 'http://' + CONTROLLER_IP + process.env.STALK_PORT + '/api/v1.0/mitigate',
                     headers:
                     {
                         'cache-control': 'no-cache',
@@ -360,7 +394,7 @@ function execSSH(cmd, service) {
     try {
 
         var server = {};
-        server.host = process.env.CONTROLLER;
+        server.host = CONTROLLER_IP;
         server.port = process.env.SSH_PORT;
         server.userName = process.env.SSH_USER;
         server.privateKey = require('fs').readFileSync(process.env.SSH_KEY);
@@ -393,7 +427,7 @@ function execSSH(cmd, service) {
 function getServiceStatus(serviceName) {
     try {
         var server = {};
-        server.host = process.env.CONTROLLER;
+        server.host = CONTROLLER_IP;
         server.port = process.env.SSH_PORT;
         server.userName = process.env.SSH_USER;
         server.privateKey = require('fs').readFileSync(process.env.SSH_KEY);
