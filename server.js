@@ -394,7 +394,8 @@ setInterval(function () {
  */
 function execSSH(cmd, service) {
     console.info("ExecSSH invoked.");
-    console.info(cmd, service);
+    console.info("cmd:"+ cmd);
+    console.info("cmd:"+ service);
     try {
 
         var server = {};
@@ -411,7 +412,7 @@ function execSSH(cmd, service) {
         var sshparams = {};
         sshparams = {
             server: server,
-            commands: cmd,
+            commands: [cmd],
             msg: msg,
             debug: true,
             verbose: true
