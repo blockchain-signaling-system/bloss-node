@@ -57,7 +57,8 @@ global.controllerAvailability = false;
 dotenv.load({ path: '.env' });
 
 /**
- * Initialize variables depending on CONTROLLER
+ * Initialize variables depending on env variable "CONTROLLER"
+ * e.g. start with env CONTROLLER=CONTROLLER500 nodemon and it will adapt accordingly
  */
 var WEBSOCKET_PORT;
 var CONTROLLER_IP;
