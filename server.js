@@ -5,13 +5,11 @@
 */
 const express = require('express');
 const http = require('http');
-const socketio = require('socket.io');
 const dotenv = require('dotenv');
 const ssh2shell = require('ssh2shell');
 const bodyParser = require('body-parser')
 const mongoose = require('mongoose');
 const chalk = require('chalk');
-const axios = require('axios');
 var request = require("request");
 
 /** 
@@ -176,7 +174,7 @@ function updateAttackReport(id, action) {
         const updateReport = await Report.findById(id); // Query
         updateReport.status = action; // Modify        
         const result = await updateReport.save(); // Save
-        console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " ");
+        console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " " + API_success);
         io.emit('reportChannel', { data: result }); // Emitting update back to client
 
         switch (result.status) {
@@ -236,7 +234,7 @@ app.post('/api/v1.0/report', (req, res) => {
     } catch (e) {
         attack_report = req.body;
     }
-    console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " ");
+    // console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " ");
 
     try {
         // Step 1: declare promise
@@ -286,7 +284,8 @@ app.post('/api/v1.0/report', (req, res) => {
         var callCheckDuplicatePromise = async () => {
             var result = await (checkDuplicatePromise());
             if (result.length > 0) {
-                console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an attack report with hash:" + result[0].hash);
+                // There is already a report with this hash...
+                // console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an attack report with hash:" + result[0].hash);
             } else {
                 //anything here is executed after result is resolved
                 var persist = await (persistAttackReportPromise());
