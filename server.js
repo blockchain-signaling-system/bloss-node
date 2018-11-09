@@ -63,6 +63,7 @@ dotenv.load({ path: '.env' });
 var WEBSOCKET_PORT;
 var CONTROLLER_IP;
 var SUBNET;
+var MONGOD;
 if (!WEBSOCKET_PORT && !CONTROLLER_IP && !SUBNET) {
     switch (process.env.CONTROLLER) {
         case 'CONTROLLER400':
@@ -70,18 +71,21 @@ if (!WEBSOCKET_PORT && !CONTROLLER_IP && !SUBNET) {
             WEBSOCKET_PORT = process.env.C400_WS_PORT;
             CONTROLLER_IP = process.env.C400_CONTROLLER_IP;
             SUBNET = process.env.C400_SUBNET
+            MONGOD = process.env.C400_MONGOD;
             break;
         case 'CONTROLLER500':
             console.info("Loading config for Controller500");
             WEBSOCKET_PORT = process.env.C500_WS_PORT;
             CONTROLLER_IP = process.env.C500_CONTROLLER_IP;
             SUBNET = process.env.C500_SUBNET;
+            MONGOD = process.env.C500_MONGOD;
             break;
         case 'CONTROLLER600':
             console.info("Loading config for Controller600");
             CONTROLLER_IP = process.env.C600_CONTROLLER_IP;
             WEBSOCKET_PORT = process.env.C600_WS_PORT;
-            SUBNET = process.env.C600_SUBNET
+            SUBNET = process.env.C600_SUBNET;
+            MONGOD = process.env.C600_MONGOD;
             break;
         default:
             console.error('Initializing .env failed');
@@ -141,7 +145,7 @@ io.on('connection', function (socket) {
 /**
  * Connect MongoDB with mongoose
  */
-mongoose.connect(process.env.MONGO_DB_REPORTS, { useNewUrlParser: true })
+mongoose.connect(MONGOD, { useNewUrlParser: true })
     .then(() => console.info('Connected to MongoDB'))
     .catch(err => console.error('Could not connect to MongoDB', err));
 
