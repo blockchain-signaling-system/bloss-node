@@ -172,6 +172,10 @@ const Report = mongoose.model('Report', reportSchema);
 function updateAttackReport(id, action) {
     async function queryAndModify(id) {
         const updateReport = await Report.findById(id); // Query
+        if (updateReport.status === 'M_APPROVED' || updateReport.status === 'M_DECLINED') {
+            console.error(WS_prefix + chalk.hex("#282828").bgHex("#c6455b").bold(" " + updateReport.hash + " is already " + updateReport.status));
+            return;
+        }
         updateReport.status = action; // Modify        
         const result = await updateReport.save(); // Save
         console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " " + API_success);
@@ -394,8 +398,8 @@ setInterval(function () {
  */
 function execSSH(cmd, service) {
     console.info("ExecSSH invoked.");
-    console.info("cmd:"+ cmd);
-    console.info("cmd:"+ service);
+    console.info("cmd:" + cmd);
+    console.info("cmd:" + service);
     try {
 
         var server = {};
