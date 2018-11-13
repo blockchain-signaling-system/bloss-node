@@ -177,6 +177,7 @@ const reportSchema = new mongoose.Schema({
 });
 const Report = mongoose.model('Report', reportSchema);
 
+
 /**
  * 
  * This method updates attack reports status to 'action' iff a report with _id exists
@@ -210,7 +211,7 @@ function updateAttackReport(id, action) {
                         'content-type': 'application/json'
                     },
                     body:
-                    {   
+                    {
                         sender: CONTROLLER_IP,
                         reaction: MitigationRequest.MITIGATION_REQ_DECLINED,
                         attack_report: {
@@ -272,6 +273,7 @@ function updateAttackReport(id, action) {
                 console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 break;
             case RequestMitigation.REQ_MITIGATION_REQUESTED:
+                console.info('Inside REQ_MITIGATION_REQUESTED case');
                 console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 // Send to /report from the controller; which will post to blockchain and relevant controller will retrieve it
                 // Make sure properly formatted attack-report before reporting
@@ -301,9 +303,11 @@ function updateAttackReport(id, action) {
                 };
 
                 // Send request to /report
+                console.info('Starting request now');
                 request(options, function (error, response, body) {
                     if (error) {
-                        console.error(error.message);
+                        console.error("There has been an error");
+                        // console.error(error.message);
                     }
                     if (response) {
                         console.info(response);
@@ -321,6 +325,7 @@ function updateAttackReport(id, action) {
     }
     queryAndModify(id);
 }
+
 
 /** 
  * This endpoint receives reports from bloss-core, 
@@ -411,8 +416,8 @@ app.post('/api/v1.0/alarm', (req, res) => {
         attack_report = req.body;
         console.log(attack_report);
     }
-    console.log(attack_report);
-    console.log(attack_report.length);
+    // console.log(attack_report);
+    // console.log(attack_report.length);
     console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
 
     try {
@@ -678,18 +683,18 @@ function getRandomColor() {
  * Returned is a string containing the target IP and port
  * @param {String} target 
  */
-function getControllerIPandPort(target){
+function getControllerIPandPort(target) {
     var target_subnet = target.split(".")[2];
-    if(target_subnet === '40'){
+    if (target_subnet === '40') {
         // return process.env.C400_CONTROLLER_IP+':'+process.env.C400_WS_PORT;
-        return 'localhost'+':'+'8040';
+        return 'localhost' + ':' + '8040';
     }
-    if(target_subnet === '50'){
+    if (target_subnet === '50') {
         // return process.env.C500_CONTROLLER_IP+':'+process.env.C500_WS_PORT;
-        return 'localhost'+':'+'8050';
+        return 'localhost' + ':' + '8050';
     }
-    if(target_subnet === '60'){
+    if (target_subnet === '60') {
         // return process.env.C600_CONTROLLER_IP+':'+process.env.C600_WS_PORT;
-        return 'localhost'+':'+'8060';
+        return 'localhost' + ':' + '8060';
     }
 }
