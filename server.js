@@ -12,6 +12,13 @@ const mongoose = require('mongoose');
 const chalk = require('chalk');
 var request = require("request");
 
+/**
+ * Constants
+ */
+const MitigationRequest = require('./mitigationReq');
+const RequestMitigation = require('./reqMitigation');
+
+
 /** 
  * Declaring logging relevant variables
  */
@@ -25,6 +32,7 @@ var info_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" INFO ") + " ";
 var WS_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" WS ") + " ";
 var API_prefix = chalk.hex("#282828").bgHex("#43C59E").bold(" API ") + " ";
 var API_report = chalk.hex("#282828").bgHex("#43C59E").bold(" REPORT ") + " ";
+var API_alarm = chalk.hex("#282828").bgHex("#43C59E").bold(" ALARM ") + " ";
 var API_post = chalk.hex("#282828").bgHex("#43C59E").bold(" POST ") + " ";
 var API_success = chalk.hex("#282828").bgHex("#D2FF28").bold(" SUCCESS ") + " ";
 var API_duplicate = chalk.hex("#282828").bgHex("#c6455b").bold(" DUPLICATE ") + " ";
@@ -299,6 +307,84 @@ app.post('/api/v1.0/report', (req, res) => {
         // Step 3: make the call
         callCheckDuplicatePromise().then(function (result) {
             res.json({ message: 'Report already persisted' });
+        });
+    } catch (e) {
+        next(e)
+    }
+});
+
+app.post('/api/v1.0/alarm', (req, res) => {
+    // This check is necessary for testing with Postman, data already arrives as JS Object and doesn't need parsing
+    var attack_report;
+    try {
+        attack_report = JSON.parse(req.body);
+    } catch (e) {
+        attack_report = req.body;
+        console.log(attack_report);
+    }
+    console.log(attack_report);
+    console.log(attack_report.length);
+    console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
+    
+    try {
+        // Step 1: declare promise
+        var checkDuplicatePromise = () => {
+            return new Promise((resolve, reject) => {
+                Report.find({ hash: attack_report.hash }, function (err, data) {
+                    err
+                        ? reject(err)
+                        : resolve(data);
+                });
+            });
+        };
+
+        var persistAttackReportPromise = () => {
+            return new Promise((resolve, reject) => {
+                // Timestamps sent from Bloss are not correctly formatted (2018-10-30-07:41:09 instead of 2018-10-30T07:41:09)
+                var bodyTimeStampClean = replaceAt(attack_report.timestamp, 10, "T")
+                function replaceAt(substring, index, replacement) {
+                    if (substring != null) {
+                        return substring.substr(0, index) + replacement + substring.substr(index + replacement.length);
+                    }
+                    else return null;
+                }
+                var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
+                const report = new Report({
+                    hash: attack_report.hash,
+                    target: attack_report.target,
+                    timestamp: timestamp,
+                    action: attack_report.action,
+                    subnetwork: attack_report.subnetwork,
+                    addresses: attack_report.addresses,
+                    status: attack_report.status
+                });
+                report.save(function (err, data) {
+                    if (err) {
+                        console.error("There has been a problem while saving the alarm", err);
+                    } else {
+                        console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.attackers + " ") + " " + API_success);
+                        io.emit('alarmChannel', { data: data });
+                        res.json({ message: 'Report persisted', data: data });
+                    }
+                });
+            });
+        };
+
+        // Step 2: async promise handler
+        var callCheckDuplicatePromise = async () => {
+            var result = await (checkDuplicatePromise());
+            if (result.length > 0) {
+                // There is already a report with this hash...
+                console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
+            } else {
+                //anything here is executed after result is resolved
+                var persist = await (persistAttackReportPromise());
+            }
+        };
+
+        // Step 3: make the call
+        callCheckDuplicatePromise().then(function (result) {
+            res.json({ message: 'Alarm already persisted' });
         });
     } catch (e) {
         next(e)
