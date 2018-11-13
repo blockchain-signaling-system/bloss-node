@@ -125,6 +125,13 @@ io.on('connection', function (socket) {
         }
     });
 
+    socket.on('alarmResponse', function (data) {
+        console.info("alarmResponse for " + data._id + " is " + data.action);
+        if (global.controllerAvailability) {
+            updateAttackReport(data._id, data.action);
+        }
+    })
+
     /**
      * Controls services on the controller
      */
@@ -166,10 +173,9 @@ const reportSchema = new mongoose.Schema({
     action: String,
     subnetwork: String,
     addresses: [String],
-    status: { type: String, default: "T_REQUESTS" },
+    status: { type: String, default: MitigationRequest.NEW_MITIGATION_REQ },
 });
 const Report = mongoose.model('Report', reportSchema);
-
 
 /**
  * 
@@ -180,20 +186,55 @@ const Report = mongoose.model('Report', reportSchema);
 function updateAttackReport(id, action) {
     async function queryAndModify(id) {
         const updateReport = await Report.findById(id); // Query
-        if (updateReport.status === 'M_APPROVED' || updateReport.status === 'M_DECLINED') {
+        if (updateReport.status === MitigationRequest.MITIGATION_REQ_ACCEPTED || updateReport.status === MitigationRequest.MITIGATION_REQ_DECLINED) {
             console.error(WS_prefix + chalk.hex("#282828").bgHex("#c6455b").bold(" " + updateReport.hash + " is already " + updateReport.status));
             return;
         }
         updateReport.status = action; // Modify        
         const result = await updateReport.save(); // Save
         console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " " + API_success);
-        io.emit('reportChannel', { data: result }); // Emitting update back to client
+
 
         switch (result.status) {
-            case 'M_DECLINED':
+            case MitigationRequest.MITIGATION_REQ_DECLINED:
+                // We need to send a POST to the API of target's controller letting it know we declined the MREQ. 
+                // Evaluate proper IP of controller
+                var target_controller_ip_and_port = getControllerIPandPort(result.target);
+                console.info(target_controller_ip_and_port);
+                var options = {
+                    method: 'POST',
+                    url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
+                    headers:
+                    {
+                        'cache-control': 'no-cache',
+                        'content-type': 'application/json'
+                    },
+                    body:
+                    {   
+                        sender: CONTROLLER_IP,
+                        reaction: MitigationRequest.MITIGATION_REQ_DECLINED,
+                        attack_report: {
+                            hash: parseInt(result.hash),
+                            target: result.target,
+                            timestamp: result.timestamp,
+                            action: result.action,
+                            subnetwork: result.subnetwork,
+                            addresses: result.addresses
+                        }
+                    },
+                    json: true
+                };
+
+                request(options, function (error, response, body) {
+                    if (error) {
+                        console.error(error.message);
+                    }
+                });
+                io.emit('reportChannel', { data: result }); // Emitting update back to client
                 // console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 break;
-            case 'M_APPROVED':
+            case MitigationRequest.MITIGATION_REQ_ACCEPTED:
+                io.emit('reportChannel', { data: result }); // Emitting update back to client
                 // console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 var ts = JSON.stringify(result.timestamp);
                 var ts_date = ts.substring(1, 11) + "-";
@@ -225,6 +266,54 @@ function updateAttackReport(id, action) {
                         console.error(error.message);
                     }
                 });
+                break;
+            case RequestMitigation.ALARM_IGNORED:
+                io.emit('alarmChannel', { data: result }); // Emitting update back to client
+                console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
+                break;
+            case RequestMitigation.REQ_MITIGATION_REQUESTED:
+                console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
+                // Send to /report from the controller; which will post to blockchain and relevant controller will retrieve it
+                // Make sure properly formatted attack-report before reporting
+                var ts = JSON.stringify(result.timestamp);
+                var ts_date = ts.substring(1, 11) + "-";
+                var ts_time = ts.substring(12, 20);
+                var ts_for_post = ts_date + ts_time;
+
+                var options = {
+                    method: 'POST',
+                    url: 'http://' + CONTROLLER_IP + process.env.STALK_PORT + '/api/v1.0/report',
+                    headers:
+                    {
+                        'cache-control': 'no-cache',
+                        'content-type': 'application/json'
+                    },
+                    body:
+                    {
+                        hash: parseInt(result.hash),
+                        target: result.target,
+                        timestamp: ts_for_post,
+                        action: result.action,
+                        subnetwork: result.subnetwork,
+                        addresses: result.addresses
+                    },
+                    json: true
+                };
+
+                // Send request to /report
+                request(options, function (error, response, body) {
+                    if (error) {
+                        console.error(error.message);
+                    }
+                    if (response) {
+                        console.info(response);
+                    }
+                    if (body) {
+                        console.info(body);
+                    }
+                });
+                // Send update back to client
+                io.emit('alarmChannel', { data: result }); // Emitting update back to client
                 break;
             default:
                 console.error("Something went wrong with this request.", id, action);
@@ -325,7 +414,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
     console.log(attack_report);
     console.log(attack_report.length);
     console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
-    
+
     try {
         // Step 1: declare promise
         var checkDuplicatePromise = () => {
@@ -356,7 +445,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
                     action: attack_report.action,
                     subnetwork: attack_report.subnetwork,
                     addresses: attack_report.addresses,
-                    status: attack_report.status
+                    status: RequestMitigation.NEW_ALARM
                 });
                 report.save(function (err, data) {
                     if (err) {
@@ -391,6 +480,20 @@ app.post('/api/v1.0/alarm', (req, res) => {
     }
 });
 
+app.post('/api/v1.0/react', (req, res) => {
+    // Between controllers, we can 'react' sometimes. this reaction is received in here
+
+    // Analyze JSON first, try in multi node deployment
+
+    // 
+
+    try {
+        console.info('Inside of /react')
+        res.json({ message: 'Reaction persisted', data: req.body });
+    } catch (e) {
+        console.log(e);
+    }
+});
 
 app.post('/api/v1.0/get-report', (req, res) => {
     console.log('/api/v1.0/get-report called');
@@ -568,4 +671,25 @@ function getRandomColor() {
         color += letters[Math.floor(Math.random() * 16)];
     }
     return color;
+}
+
+/**
+ * This function evaluates the origin of the attack_report and informs the respective node server
+ * Returned is a string containing the target IP and port
+ * @param {String} target 
+ */
+function getControllerIPandPort(target){
+    var target_subnet = target.split(".")[2];
+    if(target_subnet === '40'){
+        // return process.env.C400_CONTROLLER_IP+':'+process.env.C400_WS_PORT;
+        return 'localhost'+':'+process.env.C400_WS_PORT;
+    }
+    if(target_subnet === '50'){
+        // return process.env.C500_CONTROLLER_IP+':'+process.env.C500_WS_PORT;
+        return 'localhost'+':'+process.env.C500_WS_PORT;
+    }
+    if(target_subnet === '60'){
+        // return process.env.C600_CONTROLLER_IP+':'+process.env.C600_WS_PORT;
+        return 'localhost'+':'+process.env.C600_WS_PORT;
+    }
 }
