@@ -1,0 +1,27 @@
+const NEW_ALARM = "NEW_ALARM",
+    ALARM_IGNORED = "ALARM_IGNORED",
+    REQ_MITIGATION_REQUESTED = "REQ_MITIGATION_REQUESTED",
+    REQ_MITIGATION_ACCEPTED = "REQ_MITIGATION_ACCEPTED",
+    REQ_MITIGATION_IN_PROGRESS = "REQ_MITIGATION_IN_PROGRESS",
+    REQ_MITIGATION_SUCCESSFUL = "REQ_MITIGATION_SUCCESSFUL";
+
+module.exports = class RequestMitigation {
+    static get NEW_ALARM() {
+        return NEW_ALARM;
+    }
+    static get ALARM_IGNORED() {
+        return ALARM_IGNORED;
+    }
+    static get REQ_MITIGATION_REQUESTED() {
+        return REQ_MITIGATION_REQUESTED;
+    }
+    static get REQ_MITIGATION_ACCEPTED() {
+        return REQ_MITIGATION_ACCEPTED;
+    }
+    static get REQ_MITIGATION_IN_PROGRESS() {
+        return REQ_MITIGATION_IN_PROGRESS;
+    }
+    static get REQ_MITIGATION_SUCCESSFUL() {
+        return REQ_MITIGATION_SUCCESSFUL;
+    }
+};
