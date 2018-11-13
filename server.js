@@ -682,14 +682,14 @@ function getControllerIPandPort(target){
     var target_subnet = target.split(".")[2];
     if(target_subnet === '40'){
         // return process.env.C400_CONTROLLER_IP+':'+process.env.C400_WS_PORT;
-        return 'localhost'+':'+process.env.C400_WS_PORT;
+        return 'localhost'+':'+'8040';
     }
     if(target_subnet === '50'){
         // return process.env.C500_CONTROLLER_IP+':'+process.env.C500_WS_PORT;
-        return 'localhost'+':'+process.env.C500_WS_PORT;
+        return 'localhost'+':'+'8050';
     }
     if(target_subnet === '60'){
         // return process.env.C600_CONTROLLER_IP+':'+process.env.C600_WS_PORT;
-        return 'localhost'+':'+process.env.C600_WS_PORT;
+        return 'localhost'+':'+'8060';
     }
 }
