@@ -284,7 +284,7 @@ function updateAttackReport(id, action) {
 
                 var options = {
                     method: 'POST',
-                    url: 'http://' + CONTROLLER_IP + process.env.STALK_PORT + '/api/v1.0/report',
+                    url: 'http://' + CONTROLLER_IP + process.env.BLOSS_PORT + '/api/v1.0/report',
                     headers:
                     {
                         'cache-control': 'no-cache',
