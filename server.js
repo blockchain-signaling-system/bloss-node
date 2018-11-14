@@ -541,7 +541,7 @@ app.post('/api/v1.0/react', (req, res) => {
         try {
             switch (req.body.reaction) {
                 case MitigationRequest.MITIGATION_REQ_DECLINED:
-                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.MITIGATION_REQ_DECLINED);
+                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.REQ_MITIGATION_DECLINED);
                     // Change status in mongodb and 
                     try {
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
@@ -561,15 +561,15 @@ app.post('/api/v1.0/react', (req, res) => {
                     // emit back to WS client
                     break;
                 case MitigationRequest.MITIGATION_REQ_ACCEPTED:
-                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_ACCEPTED);
+                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.REQ_MITIGATION_ACCEPTED);
                     // Change status in mongodb and 
                     try {
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
                         if (updateReportArray.length > 0) {
                             console.log(updateReportArray);
                             const updateReport = await Report.findById(updateReportArray[0]._id);
-                            // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
-                            updateReport.status = RequestMitigation.MITIGATION_REQ_ACCEPTED; // Modify
+                            // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
+                            updateReport.status = RequestMitigation.REQ_MITIGATION_ACCEPTED; // Modify
                             const result = await updateReport.save(); // Save
                             console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
                             res.json({ message: 'Reaction OK', data: result });
