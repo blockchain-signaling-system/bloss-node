@@ -267,6 +267,9 @@ function updateAttackReport(id, action) {
                         console.error(error.message);
                     }
                 });
+
+                // Send reaction to other controller, also when you accept
+
                 break;
             case RequestMitigation.ALARM_IGNORED:
                 io.emit('alarmChannel', { data: result }); // Emitting update back to client
@@ -277,6 +280,8 @@ function updateAttackReport(id, action) {
                 console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 // Send to /report from the controller; which will post to blockchain and relevant controller will retrieve it
                 // Make sure properly formatted attack-report before reporting
+                console.info('result:'+result);
+                console.info(result.timestamp);
                 var ts = JSON.stringify(result.timestamp);
                 var ts_date = ts.substring(1, 11) + "-";
                 var ts_time = ts.substring(12, 20);
@@ -413,6 +418,11 @@ app.post('/api/v1.0/alarm', (req, res) => {
         attack_report = req.body;
         console.log(attack_report);
     }
+
+    // Filter alarms, check target and attackers, if there has been an alarm already in the last X seconds, don't send again!
+
+
+
     // console.log(attack_report);
     // console.log(attack_report.length);
     console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
@@ -686,14 +696,14 @@ function getControllerIPandPort(target) {
     var target_subnet = target.split(".")[2];
     if (target_subnet === '40') {
         // return process.env.C400_CONTROLLER_IP+':'+process.env.C400_WS_PORT;
-        return 'localhost' + ':' + '8040';
+        return 'localhost' + ':'+process.env.C400_WS_PORT;
     }
     if (target_subnet === '50') {
         // return process.env.C500_CONTROLLER_IP+':'+process.env.C500_WS_PORT;
-        return 'localhost' + ':' + '8050';
+        return 'localhost' + ':'+process.env.C500_WS_PORT;
     }
     if (target_subnet === '60') {
         // return process.env.C600_CONTROLLER_IP+':'+process.env.C600_WS_PORT;
-        return 'localhost' + ':' + '8060';
+        return 'localhost' + ':'+process.env.C600_WS_PORT;
     }
 }
