@@ -202,7 +202,7 @@ function updateAttackReport(id, action) {
                 // Evaluate proper IP of controller
                 var target_controller_ip_and_port = getControllerIPandPort(result.target);
                 console.info(target_controller_ip_and_port);
-                var options = {
+                var options_req_declined = {
                     method: 'POST',
                     url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
                     headers:
@@ -226,7 +226,7 @@ function updateAttackReport(id, action) {
                     json: true
                 };
 
-                request(options, function (error, response, body) {
+                request(options_req_declined, function (error, response, body) {
                     if (error) {
                         console.error(error.message);
                     }
@@ -269,6 +269,37 @@ function updateAttackReport(id, action) {
                 });
 
                 // Send reaction to other controller, also when you accept
+                var target_controller_ip_and_port = getControllerIPandPort(result.target);
+                console.info(target_controller_ip_and_port);
+                var options_req_accepted= {
+                    method: 'POST',
+                    url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
+                    headers:
+                    {
+                        'cache-control': 'no-cache',
+                        'content-type': 'application/json'
+                    },
+                    body:
+                    {
+                        sender: CONTROLLER_IP,
+                        reaction: MitigationRequest.MITIGATION_REQ_DECLINED,
+                        attack_report: {
+                            hash: parseInt(result.hash),
+                            target: result.target,
+                            timestamp: result.timestamp,
+                            action: result.action,
+                            subnetwork: result.subnetwork,
+                            addresses: result.addresses
+                        }
+                    },
+                    json: true
+                };
+
+                request(options_req_accepted, function (error, response, body) {
+                    if (error) {
+                        console.error(error.message);
+                    }
+                });
 
                 break;
             case RequestMitigation.ALARM_IGNORED:
@@ -280,7 +311,7 @@ function updateAttackReport(id, action) {
                 console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 // Send to /report from the controller; which will post to blockchain and relevant controller will retrieve it
                 // Make sure properly formatted attack-report before reporting
-                console.info('result:'+result);
+                console.info('result:' + result);
                 console.info(result.timestamp);
                 var ts = JSON.stringify(result.timestamp);
                 var ts_date = ts.substring(1, 11) + "-";
@@ -492,14 +523,33 @@ app.post('/api/v1.0/alarm', (req, res) => {
     }
 });
 
+/**
+ * Reaction from other controllers to RequestMitigations, can either be
+ * REQ_MITIGATION_DECLINED
+ * or REQ_MITIGATION_ACCEPTED
+ */
 app.post('/api/v1.0/react', (req, res) => {
-    // Between controllers, we can 'react' sometimes. this reaction is received in here
+    console.info('req.body' + req.body);
+    console.info(req.body);
+    try {
+        switch (req.body.reaction) {
+            case RequestMitigation.MITIGATION_REQ_DECLINED:
+                console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_ACCEPTED);
+                // Change status in mongodb and 
+                // emit back to WS client
+                break;
+            case RequestMitigation.MITIGATION_REQ_ACCEPTED:
+                console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_ACCEPTED);
+                // Change status in mongodb and 
+                // emit back to WS client
+                break;
+            default:
+                break;
+        }
+    } catch (e) {
+        console.error('There has been a problem with /react' + e, req.body);
+    }
 
-    // Analyze JSON first, try in multi node deployment
-    console.info('received reaction');
-    console.info('req:'+req);
-    console.info('req.body'+req.body);
-    // 
 
     try {
         console.info('Inside of /react')
@@ -696,14 +746,14 @@ function getControllerIPandPort(target) {
     var target_subnet = target.split(".")[2];
     if (target_subnet === '40') {
         // return process.env.C400_CONTROLLER_IP+':'+process.env.C400_WS_PORT;
-        return 'localhost' + ':'+process.env.C400_WS_PORT;
+        return 'localhost' + ':' + process.env.C400_WS_PORT;
     }
     if (target_subnet === '50') {
         // return process.env.C500_CONTROLLER_IP+':'+process.env.C500_WS_PORT;
-        return 'localhost' + ':'+process.env.C500_WS_PORT;
+        return 'localhost' + ':' + process.env.C500_WS_PORT;
     }
     if (target_subnet === '60') {
         // return process.env.C600_CONTROLLER_IP+':'+process.env.C600_WS_PORT;
-        return 'localhost' + ':'+process.env.C600_WS_PORT;
+        return 'localhost' + ':' + process.env.C600_WS_PORT;
     }
 }
