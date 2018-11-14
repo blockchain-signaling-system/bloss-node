@@ -309,9 +309,6 @@ function updateAttackReport(id, action) {
                         console.error("There has been an error");
                         // console.error(error.message);
                     }
-                    if (response) {
-                        console.info(response);
-                    }
                     if (body) {
                         console.info(body);
                     }
@@ -489,7 +486,9 @@ app.post('/api/v1.0/react', (req, res) => {
     // Between controllers, we can 'react' sometimes. this reaction is received in here
 
     // Analyze JSON first, try in multi node deployment
-
+    console.info('received reaction');
+    console.info('req:'+req);
+    console.info('req.body'+req.body);
     // 
 
     try {
