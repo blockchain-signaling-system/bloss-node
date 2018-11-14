@@ -489,10 +489,13 @@ app.post('/api/v1.0/alarm', (req, res) => {
                     else return null;
                 }
                 var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
+                console.log(timestamp);
+                var ts_from_moment = moment(moment().format('YYYY:MM:DD-HH:MM:SS'), 'YYYYY:MM:DD-HH:MM:SS').toDate();
+                console.log(ts_from_moment);
                 const report = new Report({
                     hash: attack_report.hash,
                     target: attack_report.target,
-                    timestamp: moment().format('YYYY:MM:DD-HH:MM:SS'),
+                    timestamp: ts_from_moment,
                     action: attack_report.action,
                     subnetwork: attack_report.subnetwork,
                     addresses: attack_report.addresses,
@@ -500,6 +503,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
                 });
                 report.save(function (err, data) {
                     if (err) {
+                        console.error(err);
                         console.error("There has been a problem while saving the alarm", err);
                     } else {
                         console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.attackers + " ") + " " + API_success);
@@ -515,7 +519,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
             var result = await (checkDuplicatePromise());
             if (result.length > 0) {
                 // There is already a report with this hash...
-                console.info(API_prefix + API_alarm  + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
+                console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
             } else {
                 //anything here is executed after result is resolved
                 var persist = await (persistAttackReportPromise());
