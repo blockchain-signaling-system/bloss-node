@@ -323,6 +323,7 @@ function updateAttackReport(id, action) {
                 var ts_date = ts.substring(1, 11) + "-";
                 var ts_time = ts.substring(12, 20);
                 var ts_for_post = ts_date + ts_time;
+                console.info(ts_for_post);
 
                 var options = {
                     method: 'POST',
@@ -513,7 +514,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
             var result = await (checkDuplicatePromise());
             if (result.length > 0) {
                 // There is already a report with this hash...
-                console.info(API_prefix + API_report + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
+                console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
             } else {
                 //anything here is executed after result is resolved
                 var persist = await (persistAttackReportPromise());
