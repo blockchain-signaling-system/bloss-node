@@ -11,6 +11,7 @@ const bodyParser = require('body-parser')
 const mongoose = require('mongoose');
 const chalk = require('chalk');
 var request = require("request");
+const moment = require('moment');
 
 /**
  * Constants
@@ -458,10 +459,10 @@ app.post('/api/v1.0/alarm', (req, res) => {
     }
 
     // Filter alarms, check target and attackers, if there has been an alarm already in the last X seconds, don't send again!
+    // console.log(moment().format('YYYY:MM:DD-HH:MM:SS')); // November 14th 2018, 2:01:14 pm
 
-
-
-    // console.log(attack_report);
+    console.log('/alarm');
+    console.log(attack_report);
     // console.log(attack_report.length);
     console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
 
@@ -491,7 +492,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
                 const report = new Report({
                     hash: attack_report.hash,
                     target: attack_report.target,
-                    timestamp: timestamp,
+                    timestamp: moment().format('YYYY:MM:DD-HH:MM:SS'),
                     action: attack_report.action,
                     subnetwork: attack_report.subnetwork,
                     addresses: attack_report.addresses,
@@ -514,7 +515,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
             var result = await (checkDuplicatePromise());
             if (result.length > 0) {
                 // There is already a report with this hash...
-                console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
+                console.info(API_prefix + API_alarm  + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
             } else {
                 //anything here is executed after result is resolved
                 var persist = await (persistAttackReportPromise());
