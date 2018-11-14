@@ -230,6 +230,9 @@ function updateAttackReport(id, action) {
                     if (error) {
                         console.error(error.message);
                     }
+                    if (body) {
+                        console.log(body);
+                    }
                 });
                 io.emit('reportChannel', { data: result }); // Emitting update back to client
                 // console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
@@ -271,7 +274,7 @@ function updateAttackReport(id, action) {
                 // Send reaction to other controller, also when you accept
                 var target_controller_ip_and_port = getControllerIPandPort(result.target);
                 console.info(target_controller_ip_and_port);
-                var options_req_accepted= {
+                var options_req_accepted = {
                     method: 'POST',
                     url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
                     headers:
@@ -282,7 +285,7 @@ function updateAttackReport(id, action) {
                     body:
                     {
                         sender: CONTROLLER_IP,
-                        reaction: MitigationRequest.MITIGATION_REQ_DECLINED,
+                        reaction: MitigationRequest.MITIGATION_REQ_ACCEPTED,
                         attack_report: {
                             hash: parseInt(result.hash),
                             target: result.target,
@@ -298,6 +301,9 @@ function updateAttackReport(id, action) {
                 request(options_req_accepted, function (error, response, body) {
                     if (error) {
                         console.error(error.message);
+                    }
+                    if (body) {
+                        console.log(body);
                     }
                 });
 
@@ -529,34 +535,59 @@ app.post('/api/v1.0/alarm', (req, res) => {
  * or REQ_MITIGATION_ACCEPTED
  */
 app.post('/api/v1.0/react', (req, res) => {
-    console.info('req.body' + req.body);
-    console.info(req.body);
-    try {
-        switch (req.body.reaction) {
-            case RequestMitigation.MITIGATION_REQ_DECLINED:
-                console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_ACCEPTED);
-                // Change status in mongodb and 
-                // emit back to WS client
-                break;
-            case RequestMitigation.MITIGATION_REQ_ACCEPTED:
-                console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_ACCEPTED);
-                // Change status in mongodb and 
-                // emit back to WS client
-                break;
-            default:
-                break;
+    async function callUpdateAsyncFunc() {
+        console.info('req.body' + req.body);
+        console.info(req.body);
+        try {
+            switch (req.body.reaction) {
+                case MitigationRequest.MITIGATION_REQ_DECLINED:
+                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.MITIGATION_REQ_DECLINED);
+                    // Change status in mongodb and 
+                    try {
+                        const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
+                        if (updateReportArray.length > 0) {
+                            console.log(updateReportArray);
+                            const updateReport = await Report.findById(updateReportArray[0]._id);
+                            // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
+                            updateReport.status = RequestMitigation.REQ_MITIGATION_DECLINED; // Modify
+                            const result = await updateReport.save(); // Save
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            res.json({ message: 'Reaction OK', data: result });
+                            io.emit('alarmChannel', { data: result }); // Emitting update back to client
+                        }
+                    } catch (e) {
+                        console.info(e)
+                    }
+                    // emit back to WS client
+                    break;
+                case MitigationRequest.MITIGATION_REQ_ACCEPTED:
+                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_ACCEPTED);
+                    // Change status in mongodb and 
+                    try {
+                        const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
+                        if (updateReportArray.length > 0) {
+                            console.log(updateReportArray);
+                            const updateReport = await Report.findById(updateReportArray[0]._id);
+                            // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
+                            updateReport.status = RequestMitigation.MITIGATION_REQ_ACCEPTED; // Modify
+                            const result = await updateReport.save(); // Save
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            res.json({ message: 'Reaction OK', data: result });
+                            io.emit('alarmChannel', { data: result }); // Emitting update back to client
+                        }
+                    } catch (e) {
+                        console.info(e)
+                    }
+                    // emit back to WS client
+                    break;
+                default:
+                    break;
+            }
+        } catch (e) {
+            console.error('There has been a problem with /react' + e, req.body);
         }
-    } catch (e) {
-        console.error('There has been a problem with /react' + e, req.body);
     }
-
-
-    try {
-        console.info('Inside of /react')
-        res.json({ message: 'Reaction persisted', data: req.body });
-    } catch (e) {
-        console.log(e);
-    }
+    callUpdateAsyncFunc();
 });
 
 app.post('/api/v1.0/get-report', (req, res) => {
