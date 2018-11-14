@@ -490,7 +490,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
                 }
                 var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
                 console.log(timestamp);
-                var ts_from_moment = moment(moment().format('YYYY:MM:DD-HH:MM:SS'), 'YYYYY:MM:DD-HH:MM:SS').toDate();
+                var ts_from_moment = moment(moment().format('YYYY:MM:DD-hh:mm:ss'), 'YYYYY:MM:DD-hh:mm:ss').toDate();
                 console.log(ts_from_moment);
                 const report = new Report({
                     hash: attack_report.hash,
