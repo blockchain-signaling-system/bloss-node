@@ -317,6 +317,7 @@ function updateAttackReport(id, action) {
                 console.info('Inside REQ_MITIGATION_REQUESTED case');
                 console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
                 // Send to /report from the controller; which will post to blockchain and relevant controller will retrieve it
+
                 // Make sure properly formatted attack-report before reporting
                 console.info('result:' + result);
                 console.info(result.timestamp);
@@ -347,18 +348,21 @@ function updateAttackReport(id, action) {
                 };
 
                 // Send request to /report
-                console.info('Starting request now');
                 request(options, function (error, response, body) {
+                    if (response.statusCode == 201) {
+                        console.info("Successfully reported attackers to blockchain");
+                        io.emit('alarmChannel', { data: result }); // Emitting update back to client
+                    }
+                    if (response.statusCode == 500) {
+                        console.error("Failed to report attackers to blockchain");
+                        // "Failed to report attackers to blockchain"
+                    }
                     if (error) {
                         console.error("There has been an error");
+                        console.error(error);
                         // console.error(error.message);
                     }
-                    if (body) {
-                        console.info(body);
-                    }
                 });
-                // Send update back to client
-                io.emit('alarmChannel', { data: result }); // Emitting update back to client
                 break;
             default:
                 console.error("Something went wrong with this request.", id, action);
