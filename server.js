@@ -25,8 +25,8 @@ const RequestMitigation = require('./reqMitigation');
  */
 var fs = require('fs');
 var util = require('util');
-var log_file = fs.createWriteStream(__dirname + '/log.log', { flags: 'w' });
-var error_file = fs.createWriteStream(__dirname + '/error.log', { flags: 'w' });
+var log_file = fs.createWriteStream(process.env.CONTROLLER + '/log.log', { flags: 'w' });
+var error_file = fs.createWriteStream(process.env.CONTROLLER + '/error.log', { flags: 'w' });
 var error_prefix = chalk.hex("#282828").bgHex("#c6455b").bold(" ERROR ") + " ";
 var log_prefix = chalk.hex("#282828").bgHex("#a0a0a0").bold(" LOG ") + " ";
 var info_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" INFO ") + " ";
@@ -267,12 +267,14 @@ function updateAttackReport(id, action) {
                 };
 
                 request(options, function (error, response, body) {
-                    if (response.statusCode == 202) {
-                        console.info("Accepted attackers for blocking");
-                    }
-                    if (response.statusCode == 500) {
-                        console.error("Stalk controller not configured");
-                        // "Failed to report attackers to blockchain"
+                    if (response) {
+                        if (response.statusCode == 202) {
+                            console.info("Accepted attackers for blocking");
+                        }
+                        if (response.statusCode == 500) {
+                            console.error("Stalk controller not configured");
+                            // "Failed to report attackers to blockchain"
+                        }
                     }
                     if (error) {
                         console.error("There has been an error");
@@ -468,16 +470,16 @@ app.post('/api/v1.0/alarm', (req, res) => {
         attack_report = JSON.parse(req.body);
     } catch (e) {
         attack_report = req.body;
-        console.log(attack_report);
+        // console.log(attack_report);
     }
 
     // Filter alarms, check target and attackers, if there has been an alarm already in the last X seconds, don't send again!
     // console.log(moment().format('YYYY:MM:DD-HH:MM:SS')); // November 14th 2018, 2:01:14 pm
 
-    console.log('/alarm');
-    console.log(attack_report);
+    // console.log('/alarm');
+    // console.log(attack_report);
     // console.log(attack_report.length);
-    console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
+    // console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
 
     try {
         // Step 1: declare promise
@@ -502,9 +504,9 @@ app.post('/api/v1.0/alarm', (req, res) => {
                     else return null;
                 }
                 var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
-                console.log(timestamp);
+                // console.log(timestamp);
                 var ts_from_moment = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
-                console.log(ts_from_moment);
+                // console.log(ts_from_moment);
                 const report = new Report({
                     hash: attack_report.hash,
                     target: attack_report.target,
@@ -548,24 +550,106 @@ app.post('/api/v1.0/alarm', (req, res) => {
     }
 });
 
+app.post('/api/v1.0/blocking', (req, res) => {
+    console.log('/blocking called...');
+    async function callUpdateBlockingAsyncFunc() {
+        console.info(req.body);
+        console.info(req.body.hash);
+        var attack_report_hash;
+        try {
+            attack_report_hash = JSON.parse(req.body);
+            console.log('try');
+            console.log(attack_report_hash);
+        } catch (e) {
+            console.log('catch');
+            attack_report_hash = req.body.hash;
+            console.log(attack_report_hash);
+        }
+        console.log(attack_report_hash.hash);
+        console.log(attack_report_hash);
+
+
+        if (parseInt(attack_report_hash.hash) > 0) {
+            console.info('This means bloss-core sent the hash of the report that is about to get blocked');
+            try {
+                const updateHashToBlockArray = await Report.find({ hash: attack_report_hash.hash });
+                console.info(updateHashToBlockArray);
+                if (updateHashToBlockArray.length > 0) {
+                    console.log('updateHashToBlockArray' + updateHashToBlockArray);
+                    const updateHashToBlock = await Report.findById(updateHashToBlockArray[0]._id);
+                    updateHashToBlock.status = MitigationRequest.MITIGATION_REQ_IN_PROGRESS; // Modify
+                    const result = await updateHashToBlock.save(); // Save
+                    console.log('Attack report with hash' + updateHashToBlock.hash + ' changed to ' + updateHashToBlock.status);
+                    res.json({ message: 'Reaction OK', data: result });
+                    io.emit('reportChannel', { data: result }); // Emitting update back to client
+
+                    // Since this is on the local net, we also need to call react to the other instance and update to in_progress!
+                    var target_controller_ip_and_port = getControllerIPandPort(result.target);
+                    console.info(target_controller_ip_and_port);
+                    var options_req_in_progress = {
+                        method: 'POST',
+                        url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
+                        headers:
+                        {
+                            'cache-control': 'no-cache',
+                            'content-type': 'application/json'
+                        },
+                        body:
+                        {
+                            sender: CONTROLLER_IP,
+                            reaction: MitigationRequest.MITIGATION_REQ_IN_PROGRESS,
+                            attack_report: {
+                                hash: parseInt(result.hash),
+                                target: result.target,
+                                timestamp: result.timestamp,
+                                action: result.action,
+                                subnetwork: result.subnetwork,
+                                addresses: result.addresses
+                            }
+                        },
+                        json: true
+                    };
+
+                    console.info('Sending to ' + 'http://' + target_controller_ip_and_port + '/api/v1.0/react');
+                    request(options_req_in_progress, function (error, response, body) {
+                        if (error) {
+                            console.error(error.message);
+                        }
+                        if (body) {
+                            console.log(body);
+                        }
+                    });
+
+                }
+
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    }
+    callUpdateBlockingAsyncFunc();
+});
+
+
+
 /**
  * Reaction from other controllers to RequestMitigations, can either be
  * REQ_MITIGATION_DECLINED
  * or REQ_MITIGATION_ACCEPTED
  */
 app.post('/api/v1.0/react', (req, res) => {
+    console.log('/react from ' +req.body.sender);
     async function callUpdateAsyncFunc() {
-        console.info('req.body' + req.body);
-        console.info(req.body);
         try {
             switch (req.body.reaction) {
                 case MitigationRequest.MITIGATION_REQ_DECLINED:
                     console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.REQ_MITIGATION_DECLINED);
                     // Change status in mongodb and 
                     try {
+                        console.log('Updating' + req.body.attack_report.hash + ' to ' + MitigationRequest.REQ_MITIGATION_DECLINED);
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
                         if (updateReportArray.length > 0) {
-                            console.log(updateReportArray);
+                            console.log('updateReportArray' + updateReportArray);
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_DECLINED; // Modify
@@ -589,6 +673,26 @@ app.post('/api/v1.0/react', (req, res) => {
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_ACCEPTED; // Modify
+                            const result = await updateReport.save(); // Save
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            res.json({ message: 'Reaction OK', data: result });
+                            io.emit('alarmChannel', { data: result }); // Emitting update back to client
+                        }
+                    } catch (e) {
+                        console.info(e)
+                    }
+                    // emit back to WS client
+                    break;
+                case MitigationRequest.MITIGATION_REQ_IN_PROGRESS:
+                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.MITIGATION_REQ_IN_PROGRESS);
+                    // Change status in mongodb and 
+                    try {
+                        const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
+                        if (updateReportArray.length > 0) {
+                            console.log(updateReportArray);
+                            const updateReport = await Report.findById(updateReportArray[0]._id);
+                            // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
+                            updateReport.status = RequestMitigation.REQ_MITIGATION_IN_PROGRESS; // Modify
                             const result = await updateReport.save(); // Save
                             console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
                             res.json({ message: 'Reaction OK', data: result });
