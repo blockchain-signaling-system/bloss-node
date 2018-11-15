@@ -59,6 +59,16 @@ console.info = function (d) { //
 global.controllerAvailability = false;
 
 /**
+ * Alarm Stack
+ */
+var alarmStackC400 = [];
+var alarmStackC500 = [];
+var alarmStackC600 = [];
+var lengthWhenPoppedC400 = 0;
+var lengthWhenPoppedC500 = 0;
+var lengthWhenPoppedC600 = 0;
+
+/**
  * Load environment variables from .env file
  */
 dotenv.load({ path: '.env' });
@@ -522,7 +532,18 @@ app.post('/api/v1.0/alarm', (req, res) => {
                         console.error("There has been a problem while saving the alarm", err);
                     } else {
                         console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.attackers + " ") + " " + API_success);
-                        io.emit('alarmChannel', { data: data });
+                        // Instead of sending via alarmChannel, add to alarmQueue
+                        if(attack_report.subnetwork === process.env.C400_SUBNET){
+                            alarmStackC400.push(data);
+                        }
+                        if(attack_report.subnetwork === process.env.C500_SUBNET){
+                            alarmStackC500.push(data);
+                        }
+                        if(attack_report.subnetwork === process.env.C600_SUBNET){
+                            alarmStackC600.push(data);
+                        }
+                        // console.log(alarmStack.length);
+                        // io.emit('alarmChannel', { data: data });
                         res.json({ message: 'Report persisted', data: data });
                     }
                 });
@@ -549,6 +570,46 @@ app.post('/api/v1.0/alarm', (req, res) => {
         next(e)
     }
 });
+
+/**
+ * Intervals that send out alarms and empty the alarmStack
+ */
+setInterval(function () {
+    // When the alarmQueue is not empty
+    if (alarmStackC400.length > 0 && lengthWhenPoppedC400 < alarmStackC400.length) {
+        // Send newest alarm
+        lengthWhenPoppedC400 = alarmStackC400.length;
+        var data = alarmStackC400.pop()
+        io.emit('alarmChannel', { data: data });
+    }
+}, 21 * 1000);
+setInterval(function () {
+    // When the alarmQueue is not empty
+    if (alarmStackC500.length > 0 && lengthWhenPoppedC500 < alarmStackC500.length) {
+        // Send newest alarm
+        lengthWhenPoppedC500 = alarmStackC500.length;
+        var data = alarmStackC500.pop()
+        io.emit('alarmChannel', { data: data });
+    }
+}, 22 * 1000);
+setInterval(function () {
+    // When the alarmQueue is not empty
+    if (alarmStackC600.length > 0 && lengthWhenPoppedC600 < alarmStackC600.length) {
+        // Send newest alarm
+        lengthWhenPoppedC600 = alarmStackC600.length;
+        var data = alarmStackC600.pop()
+        io.emit('alarmChannel', { data: data });
+    }
+}, 23 * 1000);
+
+setInterval(function () {
+    lengthWhenPoppedC400 = 0;
+    alarmStackC400 = [];
+    lengthWhenPoppedC500 = 0;
+    alarmStackC500 = [];
+    lengthWhenPoppedC600 = 0;
+    alarmStackC600 = [];
+}, 144 * 1000);
 
 app.post('/api/v1.0/blocking', (req, res) => {
     console.log('/blocking called...');
@@ -638,7 +699,7 @@ app.post('/api/v1.0/blocking', (req, res) => {
  * or REQ_MITIGATION_ACCEPTED
  */
 app.post('/api/v1.0/react', (req, res) => {
-    console.log('/react from ' +req.body.sender);
+    console.log('/react from ' + req.body.sender);
     async function callUpdateAsyncFunc() {
         try {
             switch (req.body.reaction) {
