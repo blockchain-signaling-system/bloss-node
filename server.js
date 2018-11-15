@@ -267,8 +267,17 @@ function updateAttackReport(id, action) {
                 };
 
                 request(options, function (error, response, body) {
+                    if (response.statusCode == 202) {
+                        console.info("Accepted attackers for blocking");
+                    }
+                    if (response.statusCode == 500) {
+                        console.error("Stalk controller not configured");
+                        // "Failed to report attackers to blockchain"
+                    }
                     if (error) {
-                        console.error(error.message);
+                        console.error("There has been an error");
+                        console.error(error);
+                        // console.error(error.message);
                     }
                 });
 
