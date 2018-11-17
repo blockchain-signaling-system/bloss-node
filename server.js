@@ -277,7 +277,10 @@ function updateAttackReport(id, action) {
                 };
 
                 request(options, function (error, response, body) {
-                    if (response) {
+                    if (!error && response) {
+                        if (response === undefined) {
+                            console.log("Response is undefined, probably a timing issue");
+                        }
                         if (response.statusCode == 202) {
                             console.info("Accepted attackers for blocking");
                         }
@@ -287,9 +290,11 @@ function updateAttackReport(id, action) {
                         }
                     }
                     if (error) {
-                        console.error("There has been an error");
-                        console.error(error);
-                        // console.error(error.message);
+                        if (error.code == 'ETIMEDOUT'){
+                            console.error('There was a timing issue. Is the controller reachable? ')
+                        }else{
+                            console.error("There has been an error with code: "+error.code);
+                        }
                     }
                 });
 
@@ -370,18 +375,25 @@ function updateAttackReport(id, action) {
 
                 // Send request to /report
                 request(options, function (error, response, body) {
-                    if (response.statusCode == 201) {
-                        console.info("Successfully reported attackers to blockchain");
-                        io.emit('alarmChannel', { data: result }); // Emitting update back to client
-                    }
-                    if (response.statusCode == 500) {
-                        console.error("Failed to report attackers to blockchain");
-                        // "Failed to report attackers to blockchain"
+                    if (!error && response) {
+                        if (response === undefined) {
+                            console.log("Response is undefined, probably a timing issue");
+                        }
+                        if (response.statusCode == 201) {
+                            console.info("Successfully reported attackers to blockchain");
+                            io.emit('alarmChannel', { data: result }); // Emitting update back to client
+                        }
+                        if (response.statusCode == 500) {
+                            console.error("Failed to report attackers to blockchain");
+                            // "Failed to report attackers to blockchain"
+                        }
                     }
                     if (error) {
-                        console.error("There has been an error");
-                        console.error(error);
-                        // console.error(error.message);
+                        if (error.code == 'ETIMEDOUT'){
+                            console.error('There was a timing issue. Is the controller reachable? ')
+                        }else{
+                            console.error("There has been an error with code: "+error.code);
+                        }
                     }
                 });
                 break;
@@ -533,13 +545,13 @@ app.post('/api/v1.0/alarm', (req, res) => {
                     } else {
                         console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.attackers + " ") + " " + API_success);
                         // Instead of sending via alarmChannel, add to alarmQueue
-                        if(attack_report.subnetwork === process.env.C400_SUBNET){
+                        if (attack_report.subnetwork === process.env.C400_SUBNET) {
                             alarmStackC400.push(data);
                         }
-                        if(attack_report.subnetwork === process.env.C500_SUBNET){
+                        if (attack_report.subnetwork === process.env.C500_SUBNET) {
                             alarmStackC500.push(data);
                         }
-                        if(attack_report.subnetwork === process.env.C600_SUBNET){
+                        if (attack_report.subnetwork === process.env.C600_SUBNET) {
                             alarmStackC600.push(data);
                         }
                         // console.log(alarmStack.length);
