@@ -180,6 +180,10 @@ const reportSchema = new mongoose.Schema({
     hash: String,
     target: String,
     timestamp: { type: Date, default: Date.now },
+    timestamp_requested: { type: Date, default: Date.now },
+    timestamp_accepted: { type: Date, default: Date.now },
+    timestamp_in_progress: { type: Date, default: Date.now },
+    timestamp_successful: { type: Date, default: Date.now },
     created: { type: Date, default: Date.now },
     action: String,
     subnetwork: String,
@@ -202,7 +206,40 @@ function updateAttackReport(id, action) {
             console.error(WS_prefix + chalk.hex("#282828").bgHex("#c6455b").bold(" " + updateReport.hash + " is already " + updateReport.status));
             return;
         }
-        updateReport.status = action; // Modify        
+        updateReport.status = action; // Modify
+        
+        var ts_update = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
+        // Save new timestamps as well. // Modify
+        // TODO: Replace with switch cases
+        console.log('action:'+action);
+        if (updateReport.status == RequestMitigation.REQ_MITIGATION_REQUESTED){
+            console.log('Inside updateReport.timestamp_requested');
+            console.log('timestamp_requested ' + ts_update);
+            updateReport.timestamp_requested = ts_update;
+        }
+
+        if (action == MitigationRequest.MITIGATION_REQ_ACCEPTED){
+            console.log('timestamp_accepted ' + ts_update);
+            updateReport.timestamp_accepted = ts_update;
+        }
+
+        if(action == MitigationRequest.MITIGATION_REQ_DECLINED){
+            console.log('timestamp_declined ' + ts_update);
+            updateReport.timestamp_declined = ts_update;
+        }
+
+        // var ts_update = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
+        // if(action == MitigationRequest.MITIGATION_REQ_IN_PROGRESS){
+        //     console.log('timestamp_in_progress ' + ts_update);
+        //     updateReport.timestamp_in_progress = ts_update;
+        // }
+
+        // if(action == MitigationRequest.MITIGATION_REQ_SUCCESSFUL){
+        //     console.log('timestamp_successful ' + ts_update);
+        //     updateReport.timestamp_successful = ts_update;
+        // }
+
+        
         const result = await updateReport.save(); // Save
         console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " " + API_success);
 
@@ -229,6 +266,7 @@ function updateAttackReport(id, action) {
                             hash: parseInt(result.hash),
                             target: result.target,
                             timestamp: result.timestamp,
+                            timestamp_declined: result.timestamp_declined,
                             action: result.action,
                             subnetwork: result.subnetwork,
                             addresses: result.addresses
@@ -317,6 +355,7 @@ function updateAttackReport(id, action) {
                             hash: parseInt(result.hash),
                             target: result.target,
                             timestamp: result.timestamp,
+                            timestamp_accepted: result.timestamp_accepted,
                             action: result.action,
                             subnetwork: result.subnetwork,
                             addresses: result.addresses
@@ -355,6 +394,8 @@ function updateAttackReport(id, action) {
 
                 var options = {
                     method: 'POST',
+                    max_attempts: 3,
+                    retryDelay: 2000, 
                     url: 'http://' + CONTROLLER_IP + process.env.BLOSS_PORT + '/api/v1.0/report',
                     headers:
                     {
@@ -626,21 +667,22 @@ setInterval(function () {
 app.post('/api/v1.0/blocking', (req, res) => {
     console.log('/blocking called...');
     async function callUpdateBlockingAsyncFunc() {
-        console.info(req.body);
-        console.info(req.body.hash);
+        // console.info(req.body);
+        // console.info(req.body.hash);
         var attack_report_hash;
         try {
             attack_report_hash = JSON.parse(req.body);
-            console.log('try');
-            console.log(attack_report_hash);
+            // console.log('try');
+            // console.log(attack_report_hash);
         } catch (e) {
-            console.log('catch');
+            // console.log('catch');
             attack_report_hash = req.body.hash;
-            console.log(attack_report_hash);
+            // console.log(attack_report_hash);
         }
-        console.log(attack_report_hash.hash);
-        console.log(attack_report_hash);
+        // console.log(attack_report_hash.hash);
+        // console.log(attack_report_hash);
 
+       
 
         if (parseInt(attack_report_hash.hash) > 0) {
             console.info('This means bloss-core sent the hash of the report that is about to get blocked');
@@ -651,6 +693,9 @@ app.post('/api/v1.0/blocking', (req, res) => {
                     console.log('updateHashToBlockArray' + updateHashToBlockArray);
                     const updateHashToBlock = await Report.findById(updateHashToBlockArray[0]._id);
                     updateHashToBlock.status = MitigationRequest.MITIGATION_REQ_IN_PROGRESS; // Modify
+                    var ts_update = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
+                    console.log('timestamp_in_progress ' + ts_update);
+                    updateHashToBlock.timestamp_in_progress = ts_update;
                     const result = await updateHashToBlock.save(); // Save
                     console.log('Attack report with hash' + updateHashToBlock.hash + ' changed to ' + updateHashToBlock.status);
                     res.json({ message: 'Reaction OK', data: result });
@@ -675,6 +720,8 @@ app.post('/api/v1.0/blocking', (req, res) => {
                                 hash: parseInt(result.hash),
                                 target: result.target,
                                 timestamp: result.timestamp,
+                                timestamp_accepted: result.timestamp_accepted,
+                                timestamp_in_progress: result.timestamp_in_progress,
                                 action: result.action,
                                 subnetwork: result.subnetwork,
                                 addresses: result.addresses
@@ -726,6 +773,8 @@ app.post('/api/v1.0/react', (req, res) => {
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_DECLINED; // Modify
+                            console.log('req.body.attack_report.timestamp_declined: '+req.body.attack_report.timestamp_declined);
+                            updateReport.timestamp_declined = req.body.attack_report.timestamp_declined;
                             const result = await updateReport.save(); // Save
                             console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
                             res.json({ message: 'Reaction OK', data: result });
@@ -746,6 +795,8 @@ app.post('/api/v1.0/react', (req, res) => {
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_ACCEPTED; // Modify
+                            console.log('req.body.attack_report.timestamp_accepted; '+req.body.attack_report.timestamp_accepted);
+                            updateReport.timestamp_accepted = req.body.attack_report.timestamp_accepted;
                             const result = await updateReport.save(); // Save
                             console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
                             res.json({ message: 'Reaction OK', data: result });
@@ -766,6 +817,8 @@ app.post('/api/v1.0/react', (req, res) => {
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_IN_PROGRESS; // Modify
+                            console.log('req.body.attack_report.timestamp_in_progress: '+req.body.attack_report.timestamp_in_progress);
+                            updateReport.timestamp_in_progress = req.body.attack_report.timestamp_in_progress;
                             const result = await updateReport.save(); // Save
                             console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
                             res.json({ message: 'Reaction OK', data: result });
