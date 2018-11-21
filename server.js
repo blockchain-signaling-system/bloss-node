@@ -368,7 +368,7 @@ function updateAttackReport(id, action) {
                             console.info("Accepted attackers for blocking");
                         }
                         if (response.statusCode == 500) {
-                            console.error("Stalk controller not configured");
+                            console.error("/mitigate returned [500]: Stalk controller not configured");
                             // "Failed to report attackers to blockchain"
                         }
                     }
@@ -717,24 +717,22 @@ setInterval(function () {
 app.post('/api/v1.0/blocking', (req, res) => {
     console.log('/blocking called...');
     async function callUpdateBlockingAsyncFunc() {
-        // console.info(req.body);
+        console.info(req.body);
         // console.info(req.body.hash);
         var attack_report_hash;
         try {
             attack_report_hash = JSON.parse(req.body);
-            // console.log('try');
-            // console.log(attack_report_hash);
+            console.log('try');
+            console.log(attack_report_hash);
         } catch (e) {
-            // console.log('catch');
+            console.log('catch');
             attack_report_hash = req.body.hash;
             // console.log(attack_report_hash);
         }
-        // console.log(attack_report_hash.hash);
+        console.log(attack_report_hash.hash);
         // console.log(attack_report_hash);
 
-
-
-        if (parseInt(attack_report_hash.hash) > 0) {
+        if (Math.abs(parseInt(attack_report_hash.hash)) > 0) {
             console.info('This means bloss-core sent the hash of the report that is about to get blocked');
             try {
                 const updateHashToBlockArray = await Report.find({ hash: attack_report_hash.hash });
