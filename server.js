@@ -31,13 +31,36 @@ var error_prefix = chalk.hex("#282828").bgHex("#c6455b").bold(" ERROR ") + " ";
 var log_prefix = chalk.hex("#282828").bgHex("#a0a0a0").bold(" LOG ") + " ";
 var info_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" INFO ") + " ";
 var WS_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" WS ") + " ";
+var CONFIG_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" CONF ") + " ";
+var SSH_prefix = chalk.hex("#282828").bgHex("#3ac9d1").bold(" SSH ") + " ";
 var API_prefix = chalk.hex("#282828").bgHex("#43C59E").bold(" API ") + " ";
 var API_report = chalk.hex("#282828").bgHex("#43C59E").bold(" REPORT ") + " ";
+var API_blocking = chalk.hex("#282828").bgHex("#43C59E").bold(" BLOCKING ") + " ";
 var API_alarm = chalk.hex("#282828").bgHex("#43C59E").bold(" ALARM ") + " ";
 var API_post = chalk.hex("#282828").bgHex("#43C59E").bold(" POST ") + " ";
 var API_success = chalk.hex("#282828").bgHex("#D2FF28").bold(" SUCCESS ") + " ";
 var API_duplicate = chalk.hex("#282828").bgHex("#c6455b").bold(" DUPLICATE ") + " ";
 
+/**
+ * Add color schemata for logging output
+ */
+var LOG_NEW_MITIGATION_REQ = chalk.hex("#282828").bgHex("#FFFF72").bold(" NEW_MITIGATION_REQ ") + " ";
+var LOG_MITIGATION_REQ_DECLINED = chalk.hex("#282828").bgHex("#C1C1C1").bold(" MITIGATION_REQ_DECLINED ") + " ";
+var LOG_MITIGATION_REQ_ACCEPTED = chalk.hex("#282828").bgHex("#FFEB3B").bold(" MITIGATION_REQ_ACCEPTED ") + " ";
+var LOG_MITIGATION_REQ_IN_PROGRESS = chalk.hex("#282828").bgHex("#C8B900").bold(" MITIGATION_REQ_IN_PROGRESS ") + " ";
+var LOG_MITIGATION_REQ_SUCCESSFUL = chalk.hex("#282828").bgHex("#ADD681").bold(" MITIGATION_REQ_SUCCESSFUL ") + " ";
+
+var LOG_NEW_ALARM = chalk.hex("#282828").bgHex("#D62327").bold(" NEW_ALARM ") + " ";
+var LOG_ALARM_IGNORED = chalk.hex("#282828").bgHex("#C1C1C1").bold(" NEW_ALARM ") + " ";
+var LOG_REQ_MITIGATION_REQUESTED = chalk.hex("#FFFFFF").bgHex("#8B0011").bold(" REQ_MITIGATION_REQUESTED ") + " ";
+var LOG_REQ_MITIGATION_DECLINED = chalk.hex("#282828").bgHex("#c1c1C1").bold(" REQ_MITIGATION_DECLINED ") + " ";
+var LOG_REQ_MITIGATION_IN_PROGRESS = chalk.hex("#282828").bgHex("#C8B900").bold(" REQ_MITIGATION_IN_PROGRESS ") + " ";
+var LOG_REQ_MITIGATION_ACCEPTED = chalk.hex("#282828").bgHex("#FFEB3B").bold(" REQ_MITIGATION_ACCEPTED ") + " ";
+var LOG_REQ_MITIGATION_SUCCESSFUL = chalk.hex("#282828").bgHex("#ADD681").bold(" REQ_MITIGATION_SUCCESSFUL ") + " ";
+
+/**
+ * Configuring logger and logfiles
+ */
 var log_stdout = process.stdout;
 console.log = function (d) { //
     log_file.write(util.format(d) + '\n');
@@ -59,7 +82,7 @@ console.info = function (d) { //
 global.controllerAvailability = false;
 
 /**
- * Alarm Stack
+ * Alarm Stacks
  */
 var alarmStackC400 = [];
 var alarmStackC500 = [];
@@ -84,21 +107,21 @@ var MONGOD;
 if (!WEBSOCKET_PORT && !CONTROLLER_IP && !SUBNET) {
     switch (process.env.CONTROLLER) {
         case 'CONTROLLER400':
-            console.info("Loading config for Controller400");
+            console.info(CONFIG_prefix + "Loading config for Controller400");
             WEBSOCKET_PORT = process.env.C400_WS_PORT;
             CONTROLLER_IP = process.env.C400_CONTROLLER_IP;
             SUBNET = process.env.C400_SUBNET
             MONGOD = process.env.C400_MONGOD;
             break;
         case 'CONTROLLER500':
-            console.info("Loading config for Controller500");
+            console.info(CONFIG_prefix + "Loading config for Controller500");
             WEBSOCKET_PORT = process.env.C500_WS_PORT;
             CONTROLLER_IP = process.env.C500_CONTROLLER_IP;
             SUBNET = process.env.C500_SUBNET;
             MONGOD = process.env.C500_MONGOD;
             break;
         case 'CONTROLLER600':
-            console.info("Loading config for Controller600");
+            console.info(CONFIG_prefix + "Loading config for Controller600");
             CONTROLLER_IP = process.env.C600_CONTROLLER_IP;
             WEBSOCKET_PORT = process.env.C600_WS_PORT;
             SUBNET = process.env.C600_SUBNET;
@@ -118,16 +141,16 @@ const app = express();
 app.use(bodyParser.json({ strict: false }));
 const server = http.Server(app);
 server.listen(WEBSOCKET_PORT);
-console.info('Websocket and REST listening on: ' + WEBSOCKET_PORT);
+console.info(CONFIG_prefix + 'Websocket and REST listening on: ' + WEBSOCKET_PORT);
 
 /**
  * Declare websocket endpoints
  */
 var io = require("socket.io")(server);
 io.on('connection', function (socket) {
-    console.info("Connection established")
+    console.info(WS_prefix + "Connection established");
     /**
-     * Receives controls regarding MREQs
+     * Receives controls regarding Mitigation Requests (Mitigator Perspective)
      */
     socket.on('responseMREQ', function (data) {
         // console.info("responseMREQ for " + data._id + " is " + data.action);
@@ -136,31 +159,36 @@ io.on('connection', function (socket) {
         }
     });
 
+    /**
+     * Receives controls regarding Request Mitigations or Alarms
+     */
     socket.on('alarmResponse', function (data) {
-        console.info("alarmResponse for " + data._id + " is " + data.action);
+        // console.info("alarmResponse for " + data._id + " is " + data.action);
         if (global.controllerAvailability) {
             updateAttackReport(data._id, data.action);
         }
     })
 
     /**
-     * Controls services on the controller
+     * Controls services on the controllers via SSH
      */
     socket.on('serviceControlRequest', function (data) {
         console.info("serviceControlRequest received");
         if (global.controllerAvailability) {
             switch (data.cmd) {
                 case 'start':
-                    console.info("Starting " + JSON.stringify(data.service));
+                    console.info(SSH_prefix + "Starting " + JSON.stringify(data.service));
                     execSSH("sudo systemctl start " + data.service, data.service);
                     break;
                 case 'stop':
-                    console.info("Stopping " + JSON.stringify(data.service));
+                    console.info(SSH_prefix + "Stopping " + JSON.stringify(data.service));
                     execSSH("sudo systemctl stop " + data.service, data.service);
                     break;
                 default:
-                    console.error("Something went wrong with this request" + JSON.stringify(data));
+                    console.error(SSH_prefix + "Something went wrong with this request" + JSON.stringify(data));
             }
+        } else {
+            console.error(SSH_prefix + "Controller not available, can't execSSH");
         }
     });
 });
@@ -170,8 +198,8 @@ io.on('connection', function (socket) {
  * Connect MongoDB with mongoose
  */
 mongoose.connect(MONGOD, { useNewUrlParser: true })
-    .then(() => console.info('Connected to MongoDB'))
-    .catch(err => console.error('Could not connect to MongoDB', err));
+    .then(() => console.info(CONFIG_prefix + 'Connected to MongoDB'))
+    .catch(err => console.error(CONFIG_prefix + 'Could not connect to MongoDB', err));
 
 /**
  * Declare mongoose schema of attack reports
@@ -200,55 +228,44 @@ const Report = mongoose.model('Report', reportSchema);
  * @param {String} action the new attack_report status: [M_APPROVED] or [M_DECLINED]
  */
 function updateAttackReport(id, action) {
-    console.log('updateAttackReport:id:' + id);
     async function queryAndModify(id) {
         const updateReport = await Report.findById(id); // Query
         if (updateReport.status === MitigationRequest.MITIGATION_REQ_ACCEPTED || updateReport.status === MitigationRequest.MITIGATION_REQ_DECLINED) {
-            console.error(WS_prefix + chalk.hex("#282828").bgHex("#c6455b").bold(" " + updateReport.hash + " is already " + updateReport.status));
+            console.error(WS_prefix + chalk.hex("#282828").bgHex("#c6455b").bold(" " + updateReport.hash + " is already " + getStatusString(updateReport.status)));
             return;
         }
         updateReport.status = action; // Modify
-
         var ts_update = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
-        // Save new timestamps as well. // Modify
-        // TODO: Replace with switch cases
-        console.log('action:' + action);
+
+
+        /**
+         * Add various timestamps depending on status
+         */
         if (updateReport.status == RequestMitigation.REQ_MITIGATION_REQUESTED) {
-            console.log('Inside updateReport.timestamp_requested');
-            console.log('timestamp_requested ' + ts_update);
             updateReport.timestamp_requested = ts_update;
         }
 
         if (action == MitigationRequest.MITIGATION_REQ_ACCEPTED) {
-            console.log('timestamp_accepted ' + ts_update);
             updateReport.timestamp_accepted = ts_update;
         }
 
         if (action == MitigationRequest.MITIGATION_REQ_DECLINED) {
-            console.log('timestamp_declined ' + ts_update);
             updateReport.timestamp_declined = ts_update;
         }
 
-        // var ts_update = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
-        // if(action == MitigationRequest.MITIGATION_REQ_IN_PROGRESS){
-        //     console.log('timestamp_in_progress ' + ts_update);
-        //     updateReport.timestamp_in_progress = ts_update;
-        // }
-
         if (action == MitigationRequest.MITIGATION_REQ_SUCCESSFUL) {
-            console.log('timestamp_successful ' + ts_update);
             updateReport.timestamp_successful = ts_update;
         }
 
 
         const result = await updateReport.save(); // Save
-        console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + result.status + " ") + " " + API_success);
-
+        console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + " changed to " + getStatusString(result.status) + " ") + " " + API_success);
 
         switch (result.status) {
             case MitigationRequest.MITIGATION_REQ_SUCCESSFUL:
+
                 var target_controller_ip_and_port = getControllerIPandPort(result.target);
-                console.info(target_controller_ip_and_port);
+
                 var options_req_successful = {
                     method: 'POST',
                     url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
@@ -283,7 +300,7 @@ function updateAttackReport(id, action) {
                         console.error(error.message);
                     }
                     if (body) {
-                        console.log(body);
+                        // console.log(body);
                     }
                 });
                 io.emit('reportChannel', { data: result }); // Emitting update back to client
@@ -325,7 +342,7 @@ function updateAttackReport(id, action) {
                         console.error(error.message);
                     }
                     if (body) {
-                        console.log(body);
+                        // console.log(body);
                     }
                 });
                 io.emit('reportChannel', { data: result }); // Emitting update back to client
@@ -362,10 +379,10 @@ function updateAttackReport(id, action) {
                 request(options, function (error, response, body) {
                     if (!error && response) {
                         if (response === undefined) {
-                            console.log("Response is undefined, probably a timing issue");
+                            console.error("Response is undefined, probably a timing issue");
                         }
                         if (response.statusCode == 202) {
-                            console.info("Accepted attackers for blocking");
+                            console.info(chalk.hex("#282828").bgHex("#D2FF28").bold(" Accepted attackers for blocking "));
                         }
                         if (response.statusCode == 500) {
                             console.error("/mitigate returned [500]: Stalk controller not configured");
@@ -413,29 +430,20 @@ function updateAttackReport(id, action) {
                     if (error) {
                         console.error(error.message);
                     }
-                    if (body) {
-                        console.log(body);
-                    }
                 });
 
                 break;
             case RequestMitigation.ALARM_IGNORED:
                 io.emit('alarmChannel', { data: result }); // Emitting update back to client
-                console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
+                console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + getStatusString(result.status) + " ") + " ");
                 break;
             case RequestMitigation.REQ_MITIGATION_REQUESTED:
-                console.info('Inside REQ_MITIGATION_REQUESTED case');
-                console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + result.status + " ") + " ");
-                // Send to /report from the controller; which will post to blockchain and relevant controller will retrieve it
+                console.info(WS_prefix + chalk.hex("#282828").bgHex("#43C59E").bold(" " + result.hash + ":" + getStatusString(result.status) + " ") + " ");
 
-                // Make sure properly formatted attack-report before reporting
-                console.info('result:' + result);
-                console.info(result.timestamp);
                 var ts = JSON.stringify(result.timestamp);
                 var ts_date = ts.substring(1, 11) + "-";
                 var ts_time = ts.substring(12, 20);
                 var ts_for_post = ts_date + ts_time;
-                console.info(ts_for_post);
 
                 var options = {
                     method: 'POST',
@@ -466,7 +474,7 @@ function updateAttackReport(id, action) {
                             console.log("Response is undefined, probably a timing issue");
                         }
                         if (response.statusCode == 201) {
-                            console.info("Successfully reported attackers to blockchain");
+                            console.info(chalk.hex("#282828").bgHex("#D2FF28").bold(" Successfully reported attackers to blockchain "));
                             io.emit('alarmChannel', { data: result }); // Emitting update back to client
                         }
                         if (response.statusCode == 500) {
@@ -586,14 +594,6 @@ app.post('/api/v1.0/alarm', (req, res) => {
         // console.log(attack_report);
     }
 
-    // Filter alarms, check target and attackers, if there has been an alarm already in the last X seconds, don't send again!
-    // console.log(moment().format('YYYY:MM:DD-HH:MM:SS')); // November 14th 2018, 2:01:14 pm
-
-    // console.log('/alarm');
-    // console.log(attack_report);
-    // console.log(attack_report.length);
-    // console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.addresses + " ") + " ");
-
     try {
         // Step 1: declare promise
         var checkDuplicatePromise = () => {
@@ -608,18 +608,9 @@ app.post('/api/v1.0/alarm', (req, res) => {
 
         var persistAttackReportPromise = () => {
             return new Promise((resolve, reject) => {
-                // Timestamps sent from Bloss are not correctly formatted (2018-10-30-07:41:09 instead of 2018-10-30T07:41:09)
-                var bodyTimeStampClean = replaceAt(attack_report.timestamp, 10, "T")
-                function replaceAt(substring, index, replacement) {
-                    if (substring != null) {
-                        return substring.substr(0, index) + replacement + substring.substr(index + replacement.length);
-                    }
-                    else return null;
-                }
-                var timestamp = new Date(Date.parse(bodyTimeStampClean)); // UTC
-                // console.log(timestamp);
+
                 var ts_from_moment = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
-                // console.log(ts_from_moment);
+
                 const report = new Report({
                     hash: attack_report.hash,
                     target: attack_report.target,
@@ -634,7 +625,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
                         console.error(err);
                         console.error("There has been a problem while saving the alarm", err);
                     } else {
-                        console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " " + attack_report.target + " " + attack_report.subnetwork + " " + attack_report.attackers + " ") + " " + API_success);
+                        console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" [H]" + attack_report.hash + " [T]" + attack_report.target + " [A]" + attack_report.subnetwork + " ") + " " + API_success);
                         // Instead of sending via alarmChannel, add to alarmQueue
                         if (attack_report.subnetwork === process.env.C400_SUBNET) {
                             alarmStackC400.push(data);
@@ -645,8 +636,6 @@ app.post('/api/v1.0/alarm', (req, res) => {
                         if (attack_report.subnetwork === process.env.C600_SUBNET) {
                             alarmStackC600.push(data);
                         }
-                        // console.log(alarmStack.length);
-                        // io.emit('alarmChannel', { data: data });
                         res.json({ message: 'Report persisted', data: data });
                     }
                 });
@@ -658,7 +647,7 @@ app.post('/api/v1.0/alarm', (req, res) => {
             var result = await (checkDuplicatePromise());
             if (result.length > 0) {
                 // There is already a report with this hash...
-                console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + attack_report.hash + " ") + " " + API_duplicate + "There is already an alarm with hash:" + result[0].hash);
+                console.info(API_prefix + API_alarm + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" [H]" + attack_report.hash + " ") + " " + API_duplicate + "not saved");
             } else {
                 //anything here is executed after result is resolved
                 var persist = await (persistAttackReportPromise());
@@ -715,43 +704,31 @@ setInterval(function () {
 }, 144 * 1000);
 
 app.post('/api/v1.0/blocking', (req, res) => {
-    console.log('/blocking called...');
+
     async function callUpdateBlockingAsyncFunc() {
-        console.info(req.body);
-        // console.info(req.body.hash);
         var attack_report_hash;
         try {
             attack_report_hash = JSON.parse(req.body);
-            console.log('try');
-            console.log(attack_report_hash);
         } catch (e) {
-            console.log('catch');
             attack_report_hash = req.body.hash;
-            // console.log(attack_report_hash);
         }
-        console.log(attack_report_hash.hash);
-        // console.log(attack_report_hash);
 
         if (Math.abs(parseInt(attack_report_hash.hash)) > 0) {
-            console.info('This means bloss-core sent the hash of the report that is about to get blocked');
+            // console.info('This means bloss-core sent the hash of the report that is about to get blocked');
             try {
                 const updateHashToBlockArray = await Report.find({ hash: attack_report_hash.hash });
-                console.info(updateHashToBlockArray);
                 if (updateHashToBlockArray.length > 0) {
-                    console.log('updateHashToBlockArray' + updateHashToBlockArray);
                     const updateHashToBlock = await Report.findById(updateHashToBlockArray[0]._id);
                     updateHashToBlock.status = MitigationRequest.MITIGATION_REQ_IN_PROGRESS; // Modify
                     var ts_update = moment(moment().format('YYYY:MM:DD-HH:mm:ss'), 'YYYYY:MM:DD-HH:mm:ss').toDate();
-                    console.log('timestamp_in_progress ' + ts_update);
                     updateHashToBlock.timestamp_in_progress = ts_update;
                     const result = await updateHashToBlock.save(); // Save
-                    console.log('Attack report with hash' + updateHashToBlock.hash + ' changed to ' + updateHashToBlock.status);
+                    console.info(API_prefix + API_blocking + API_post + chalk.hex("#282828").bgHex("#43C59E").bold(" " + updateHashToBlock.hash + " changed to ") + getStatusString(updateHashToBlock.status) + " " + API_success);
                     res.json({ message: 'Reaction OK', data: result });
                     io.emit('reportChannel', { data: result }); // Emitting update back to client
 
                     // Since this is on the local net, we also need to call react to the other instance and update to in_progress!
                     var target_controller_ip_and_port = getControllerIPandPort(result.target);
-                    console.info(target_controller_ip_and_port);
                     var options_req_in_progress = {
                         method: 'POST',
                         url: 'http://' + target_controller_ip_and_port + '/api/v1.0/react',
@@ -779,16 +756,15 @@ app.post('/api/v1.0/blocking', (req, res) => {
                     };
 
                     // Call timer
-                    console.log('calling countdownBlockingTime(' + result._id + '' + ',' + result.hash + ');')
                     countdownBlockingTime(result._id, result.hash);
 
-                    console.info('Sending to ' + 'http://' + target_controller_ip_and_port + '/api/v1.0/react');
+                    console.log('Sending to ' + 'http://' + target_controller_ip_and_port + '/api/v1.0/react');
                     request(options_req_in_progress, function (error, response, body) {
                         if (error) {
                             console.error(error.message);
                         }
                         if (body) {
-                            console.log(body);
+                            // console.log(body);
                         }
                     });
 
@@ -810,99 +786,88 @@ app.post('/api/v1.0/blocking', (req, res) => {
  * or REQ_MITIGATION_ACCEPTED
  */
 app.post('/api/v1.0/react', (req, res) => {
-    console.log('/react from ' + req.body.sender);
+    // console.log('/react from ' + req.body.sender);
     async function callUpdateAsyncFunc() {
         try {
             switch (req.body.reaction) {
                 case MitigationRequest.MITIGATION_REQ_DECLINED:
-                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.REQ_MITIGATION_DECLINED);
+                    // console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.REQ_MITIGATION_DECLINED);
                     // Change status in mongodb and 
                     try {
-                        console.log('Updating' + req.body.attack_report.hash + ' to ' + MitigationRequest.REQ_MITIGATION_DECLINED);
+                        // console.log('Updating' + req.body.attack_report.hash + ' to ' + getStatusString(MitigationRequest.REQ_MITIGATION_DECLINED));
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
                         if (updateReportArray.length > 0) {
-                            console.log('updateReportArray' + updateReportArray);
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_DECLINED; // Modify
-                            console.log('req.body.attack_report.timestamp_declined: ' + req.body.attack_report.timestamp_declined);
                             updateReport.timestamp_declined = req.body.attack_report.timestamp_declined;
                             const result = await updateReport.save(); // Save
-                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + getStatusString(updateReport.status));
                             res.json({ message: 'Reaction OK', data: result });
                             io.emit('alarmChannel', { data: result }); // Emitting update back to client
                         }
                     } catch (e) {
-                        console.info(e)
+                        console.error(e)
                     }
                     // emit back to WS client
                     break;
                 case MitigationRequest.MITIGATION_REQ_ACCEPTED:
-                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.REQ_MITIGATION_ACCEPTED);
+                    // console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.REQ_MITIGATION_ACCEPTED);
                     // Change status in mongodb and 
                     try {
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
                         if (updateReportArray.length > 0) {
-                            console.log(updateReportArray);
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_ACCEPTED; // Modify
-                            console.log('req.body.attack_report.timestamp_accepted; ' + req.body.attack_report.timestamp_accepted);
                             updateReport.timestamp_accepted = req.body.attack_report.timestamp_accepted;
                             const result = await updateReport.save(); // Save
-                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + getStatusString(updateReport.status));
                             res.json({ message: 'Reaction OK', data: result });
                             io.emit('alarmChannel', { data: result }); // Emitting update back to client
                         }
                     } catch (e) {
-                        console.info(e)
+                        console.error(e)
                     }
-                    // emit back to WS client
                     break;
                 case MitigationRequest.MITIGATION_REQ_IN_PROGRESS:
-                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.MITIGATION_REQ_IN_PROGRESS);
+                    // console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + MitigationRequest.MITIGATION_REQ_IN_PROGRESS);
                     // Change status in mongodb and 
                     try {
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
                         if (updateReportArray.length > 0) {
-                            console.log(updateReportArray);
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> MITIGATION_REQ_ACCEPTED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_IN_PROGRESS; // Modify
-                            console.log('req.body.attack_report.timestamp_in_progress: ' + req.body.attack_report.timestamp_in_progress);
                             updateReport.timestamp_in_progress = req.body.attack_report.timestamp_in_progress;
                             const result = await updateReport.save(); // Save
-                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + getStatusString(updateReport.status));
                             res.json({ message: 'Reaction OK', data: result });
                             io.emit('alarmChannel', { data: result }); // Emitting update back to client
                         }
                     } catch (e) {
-                        console.info(e)
+                        console.error(e)
                     }
-                    // emit back to WS client
                     break;
                 case MitigationRequest.MITIGATION_REQ_SUCCESSFUL:
-                    console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.REQ_MITIGATION_SUCCESSFUL);
+                    // console.log('Attack report with hash' + req.body.attack_report.hash + ' is ' + RequestMitigation.REQ_MITIGATION_SUCCESSFUL);
                     // Change status in mongodb and 
                     try {
-                        console.log('Updating' + req.body.attack_report.hash + ' to ' + MitigationRequest.REQ_MITIGATION_DECLINED);
+                        // console.log('Updating' + req.body.attack_report.hash + ' to ' + MitigationRequest.REQ_MITIGATION_DECLINED);
                         const updateReportArray = await Report.find({ hash: req.body.attack_report.hash });
                         if (updateReportArray.length > 0) {
-                            console.log('updateReportArray' + updateReportArray);
                             const updateReport = await Report.findById(updateReportArray[0]._id);
                             // Perspective is important, this updates the REQ_MITIGATION_REQUESTED -> REQ_MITIGATION_DECLINED
                             updateReport.status = RequestMitigation.REQ_MITIGATION_SUCCESSFUL; // Modify
-                            console.log('req.body.attack_report.timestamp_successful: ' + req.body.attack_report.timestamp_successful);
                             updateReport.timestamp_successful = req.body.attack_report.timestamp_successful;
                             const result = await updateReport.save(); // Save
-                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + updateReport.status);
+                            console.log('Attack report with hash' + updateReport.hash + ' changed to ' + getStatusString(updateReport.status));
                             res.json({ message: 'Reaction OK', data: result });
                             io.emit('alarmChannel', { data: result }); // Emitting update back to client
                         }
                     } catch (e) {
-                        console.info(e)
+                        console.error(e)
                     }
-                    // emit back to WS client
                     break;
                 default:
                     break;
@@ -912,62 +877,6 @@ app.post('/api/v1.0/react', (req, res) => {
         }
     }
     callUpdateAsyncFunc();
-});
-
-app.post('/api/v1.0/get-report', (req, res) => {
-    console.log('/api/v1.0/get-report called');
-
-    // This check is necessary for testing with Postman, data already arrives as JS Object and doesn't need parsing
-    var attack_report;
-    try {
-        attack_report = JSON.parse(req.body);
-    } catch (e) {
-        attack_report = req.body;
-        // console.info("NOT JSON");
-    }
-
-    try {
-        //Step 1: declare promise
-        var checkRequestHash = () => {
-            // console.log(attack_report);
-            return new Promise((resolve, reject) => {
-                Report.find({ hash: attack_report.hash }, function (err, data) {
-                    err
-                        ? reject(err)
-                        : resolve(data);
-                });
-            });
-        };
-
-        //Step 2: async promise handler
-        var callCheckRequestHashPromise = async () => {
-            console.log("Calling callCheckRequestHashPromise");
-            var result = await (checkRequestHash());
-            // console.log(result);
-            try {
-                if (result.length === 1); {
-                    if (result[0].hash === attack_report.hash) {
-                        console.info("We found the attack_report:");
-                        res.json({ report: result[0] });
-                        res.end()
-                    }
-                }
-            } catch (e) {
-                res.status(404).json({ message: 'Couldnt find report' });
-                res.end()
-                console.info("Report not found.");
-            }
-
-        };
-
-        //Step 3: make the call
-        callCheckRequestHashPromise().then(function (result) {
-        }).catch(function (err) {
-            console.info("Something went wrong.", err);
-        });
-    } catch (e) {
-        next(e)
-    }
 });
 
 /**
@@ -1041,6 +950,11 @@ function execSSH(cmd, service) {
     }
 }
 
+/**
+ * 
+ * Queries the service status using systemctl via SSH
+ * @param {String} serviceName 
+ */
 function getServiceStatus(serviceName) {
     try {
         var server = {};
@@ -1078,20 +992,6 @@ function getServiceStatus(serviceName) {
     }
 }
 
-function getColorByBgColor(bgColor) {
-    if (!bgColor) { return ''; }
-    return (parseInt(bgColor.replace('#', ''), 16) > 0xffffff / 2) ? '#000' : '#fff';
-}
-
-function getRandomColor() {
-    var letters = '0123456789ABCDEF';
-    var color = '#';
-    for (var i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 16)];
-    }
-    return color;
-}
-
 /**
  * This function evaluates the origin of the attack_report and informs the respective node server
  * Returned is a string containing the target IP and port
@@ -1126,4 +1026,35 @@ function countdownBlockingTime(id, hash) {
         console.error()
     })
     );
+}
+
+function getStatusString(status) {
+    switch (status) {
+        case MitigationRequest.MITIGATION_REQ_DECLINED:
+            return LOG_MITIGATION_REQ_DECLINED;
+        case MitigationRequest.MITIGATION_REQ_ACCEPTED:
+            return LOG_MITIGATION_REQ_ACCEPTED;
+        case MitigationRequest.MITIGATION_REQ_IN_PROGRESS:
+            return LOG_MITIGATION_REQ_IN_PROGRESS;
+        case MitigationRequest.MITIGATION_REQ_SUCCESSFUL:
+            return LOG_MITIGATION_REQ_SUCCESSFUL;
+        case MitigationRequest.NEW_MITIGATION_REQ:
+            return LOG_NEW_MITIGATION_REQ;
+        case RequestMitigation.NEW_ALARM:
+            return LOG_NEW_ALARM;
+        case RequestMitigation.ALARM_IGNORED:
+            return LOG_ALARM_IGNORED;
+        case RequestMitigation.REQ_MITIGATION_REQUESTED:
+            return LOG_REQ_MITIGATION_REQUESTED;
+        case RequestMitigation.REQ_MITIGATION_ACCEPTED:
+            return LOG_REQ_MITIGATION_ACCEPTED;
+        case RequestMitigation.REQ_MITIGATION_IN_PROGRESS:
+            return LOG_REQ_MITIGATION_IN_PROGRESS;
+        case RequestMitigation.REQ_MITIGATION_DECLINED:
+            return LOG_REQ_MITIGATION_DECLINED;
+        case RequestMitigation.REQ_MITIGATION_SUCCESSFUL:
+            return LOG_REQ_MITIGATION_SUCCESSFUL;
+        default:
+            return 'no status recognized';
+    }
 }
