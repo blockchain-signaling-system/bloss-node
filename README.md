@@ -6,8 +6,9 @@ The successful deployment is only possible on a dedicated hardware system that B
 
 ![bloss-node-and-core](/figures/bloss-node-and-core.png)
 
-# BloSS architecture
-- **The Blockchain Signaling System (BloSS) architecture consists of three components.**
+# The Blockchain Signaling System (BloSS) architecture
+Enabling cooperative, multi-domain DDoS defense by distributing attack reports through Ethereum among participating autonomous systems.
+- **The BloSS architecture consists of three components.**
   - **`bloss-core`**: The [bloss-core](http://github.com/blockchain-signaling-system/bloss-core) component monitors and manages the network traffic of the underlying infrastructure and takes care of the communication with the private PoA Ethereum blockchain, the InfluxDB and also communicates with `bloss-node`. The RESTful interface is used to exchange information (e.g. attack_reports, blocking status, traffic breaches) with bloss-node. 
   - **`bloss-node`**: : This repository.
   - **`bloss-dashboard`**: The [bloss-dashboard](http://github.com/blockchain-signaling-system/bloss-dashboard) component is a front-end dashboard displaying relevant information for the human analyst. The bloss-dashboard is implemented as a single-page application (SPA) and attached to `bloss-node`
