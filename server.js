@@ -210,6 +210,7 @@ const reportSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now },
     timestamp_requested: { type: Date, default: Date.now },
     timestamp_accepted: { type: Date, default: Date.now },
+    timestamp_declined: { type: Date, default: Date.now },
     timestamp_in_progress: { type: Date, default: Date.now },
     timestamp_successful: { type: Date, default: Date.now },
     created: { type: Date, default: Date.now },
