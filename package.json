@@ -29,7 +29,7 @@
     "moment": "^2.22.2",
     "mongoose": "^5.3.7",
     "request": "^2.88.0",
-    "socket.io": "^2.1.1",
+    "socket.io": "^2.4.0",
     "ssh2": "^0.6.1",
     "ssh2shell": "^1.9.1"
   }
